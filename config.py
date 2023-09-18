@@ -53,6 +53,7 @@ parser.add_argument('--use_pol',
                     action='store_true',
                     default=False,
                     help='whether or not to use polarization representations, available for HAMMER')
+parser.add_argument('--pol_rep', type=str, default="grayscale-4", choices=['grayscale-4', 'rgb-12', 'leichenyang-7'], help="the polarization representation to be used")
 parser.add_argument('--data_txt',
                     type=str,
                     default='',
@@ -90,7 +91,7 @@ parser.add_argument('--no_multiprocessing',
 parser.add_argument('--model',
                     type=str,
                     default='CompletionFormer',
-                    choices=('CompletionFormer', 'PDNE'),
+                    choices=('CompletionFormer', 'PDNE', 'VPT-V1'),
                     help='main model name')
 parser.add_argument('--from_scratch',
                     action='store_true',
@@ -160,6 +161,8 @@ parser.add_argument('--layer0',
                     action='store_true',
                     default=False,
                     help='NO IDEA WHAT THIS IS')
+parser.add_argument('--pretrained_completionformer', type=str, default='', \
+                    help='path to the pretrained completionformer')
 
 # Training
 parser.add_argument('--loss',

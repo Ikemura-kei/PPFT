@@ -45,7 +45,7 @@ class HammerDataset(BaseDataset):
 
         self.rgb_files = [s.replace("DATA_ROOT", args.dir_data) for s in files_names] # note that the original paths in the path list is pointing to the rgb images
         
-        PERCENTAGE = 1
+        PERCENTAGE = 0.08
         if PERCENTAGE < (1-1e-6):
             random.shuffle(self.rgb_files)
             self.rgb_files = self.rgb_files[:int(len(self.rgb_files) * PERCENTAGE)]
@@ -55,7 +55,14 @@ class HammerDataset(BaseDataset):
         self.sparse_depth_itof_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "depth_tof") for s in files_names]
         self.gt_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "_gt") for s in files_names]
         if self.args.use_pol:    
-            self.pol_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "pol_npy") for s in files_names] # note that the polarizatins are stored as npy files
+            pol_folder = ''
+            if self.args.pol_rep == 'grayscale-4':
+                pol_folder = 'pol_grayscale'
+            elif self.args.pol_rep == 'rgb-12':
+                pass
+            elif self.args.pol_rep == 'leichenyang-7':
+                pass
+            self.pol_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", pol_folder) for s in files_names] # note that the polarizatins are stored as npy files
         if self.args.use_norm:
             self.norm_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "norm").replace(".png", ".npy") for s in files_names] # note that the normals are stored as npy files
 
@@ -129,13 +136,17 @@ class HammerDataset(BaseDataset):
         mask = np2tensor(mask) # (1, H, W)
 
         # -- prepare polarization representation -- 
-        # QUESTION: What is the definition of the data contained in the polarization npy files?
         if self.args.use_pol:
-            pol = np.load(self.pol_files[idx])
-            pol = pol[::4,::4,...]
-            phi_encode = np.concatenate([np.cos(2 * pol[..., 3:6]), np.sin(2 * pol[..., 3:6])], axis=2)
-            pol = np.concatenate([pol[..., 0:3], phi_encode, pol[..., 6:9], pol[..., 9:12]], axis=2)
-
+            pol = None
+            if self.args.pol_rep == 'grayscale-4':
+                pol = np.load(self.pol_files[idx].replace('.png', '.npy')) # (H, W, 4), grayscale of 0, 45, 90, and 135
+                pol = pol[::4,::4,...]
+                pol = np2tensor(pol) # (4, H, W)
+            elif self.args.pol_rep == 'rgb-12':
+                pass
+            elif self.args.pol_rep == 'leichenyang-7':
+                pass
+    
         # -- apply data augmentation --
         if self.mode == "train":
             t_rgb = T.Compose([
