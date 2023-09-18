@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from comp.completionformer import CompletionFormer
-from sfp_wild.transunet import TransUnet
+from .comp.completionformer import CompletionFormer
+from .sfp_wild.transunet import TransUnet
 
 
 class PDNE(nn.Module):

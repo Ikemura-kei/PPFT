@@ -46,7 +46,7 @@ class Backbone(nn.Module):
     def __init__(self, args):
         super(Backbone, self).__init__()
         self.args = args
-        self.mode = args.mode
+        self.mode = args.completionformer_mode
         self.use_pvt = args.pre_pvt
         self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1
         self.use_prior = args.prior
@@ -58,7 +58,7 @@ class Backbone(nn.Module):
         else:
             self.align = False
             self.direct_align = False
-        self.with_norm = args.with_norm
+        self.with_norm = args.use_norm
         print("Use norm:", self.with_norm)
         print("Use prior:", self.use_prior)
         print("Use direct cat:", self.direct_cat)
@@ -161,7 +161,7 @@ class Backbone(nn.Module):
         
         if self.use_pvt:
             self.former = PVT(in_chans=64, patch_size=2,
-                          pretrained='./models/comp/pretrained/pvt.pth', pre_res=self.pre_res, layer0=args.layer0)
+                          pretrained='./model/comp/pretrained/pvt.pth', pre_res=self.pre_res, layer0=args.layer0)
         else:
             self.former = PVT(in_chans=64, patch_size=2,
                           pretrained=None, pre_res=self.pre_res, layer0=args.layer0)

@@ -13,8 +13,8 @@ import os, sys
 
 
 model_path = {
-    'resnet18': './models/comp/pretrained/resnet18.pth',
-    'resnet34': './models/comp/pretrained/resnet34.pth'
+    'resnet18': './model/comp/pretrained/resnet18.pth',
+    'resnet34': './model/comp/pretrained/resnet34.pth'
 }
 
 

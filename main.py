@@ -5,14 +5,13 @@
     main script for training and testing.
 """
 
-
 from apex import amp
 from apex.parallel import DistributedDataParallel as DDP
 import apex
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import cv2
-from loss.l1l2loss import L1L2Loss
+from losses.l1l2loss import L1L2Loss
 from datasets.hammer import HammerDataset
 from utils.mics import save_output
 from utils.metrics import PDNEMetric
@@ -31,13 +30,12 @@ from config import args as args_config
 import time
 import random
 import os
+from model.completionformer_original.completionformer import CompletionFormer
 os.environ["CUDA_VISIBLE_DEVICES"] = args_config.gpus
 os.environ["MASTER_ADDR"] = args_config.address
 os.environ["MASTER_PORT"] = args_config.port
 
-
 torch.autograd.set_detect_anomaly(True)
-
 
 # Multi-GPU and Mixed precision supports
 # NOTE : Only 1 process per GPU is supported now
@@ -49,7 +47,6 @@ best_mae = 100
 
 # Minimize randomness
 
-
 def init_seed(seed=None):
     if seed is None:
         seed = args_config.seed
@@ -58,7 +55,6 @@ def init_seed(seed=None):
     np.random.seed(seed)
     random.seed(seed)
     torch.cuda.manual_seed_all(seed)
-
 
 def check_args(args):
     new_args = args
@@ -85,13 +81,13 @@ def train(gpu, args):
 
     # Initialize workers
     # NOTE : the worker with gpu=0 will do logging
-    dist.init_process_group(backend='nccl', init_method='env://',
+    dist.init_process_group(backend='nccl', init_method='tcp://localhost:10006',
                             world_size=args.num_gpus, rank=gpu)
     torch.cuda.set_device(gpu)
 
 
     # Prepare dataset
-    dataset = HammerDataset(args)
+    dataset = HammerDataset(args, "train")
 
     sampler_train = DistributedSampler(
         dataset, num_replicas=args.num_gpus, rank=gpu)
@@ -104,7 +100,13 @@ def train(gpu, args):
         drop_last=True)
 
     # Network
-    net = PDNE(args)
+    if args.model == 'CompletionFormer':
+        net = CompletionFormer(args)
+    elif args.mode == 'PDNE':
+        net = PDNE(args)
+    else:
+        raise TypeError(args.model, ['CompletionFormer', 'PDNE'])
+
     net.cuda(gpu)
 
     if gpu == 0:
@@ -118,16 +120,13 @@ def train(gpu, args):
             print('Load network parameters from : {}'.format(args.pretrain))
 
     # Loss
-    loss = (args)
+    loss = L1L2Loss(args)
     loss.cuda(gpu)
-    
 
     # Optimizer
-    optimizer, scheduler = train_utils.make_optimizer_scheduler(
-        args, net, len(loader_train))
+    optimizer, scheduler = train_utils.make_optimizer_scheduler(args, net, len(loader_train))
     net = apex.parallel.convert_syncbn_model(net)
-    net, optimizer = amp.initialize(
-        net, optimizer, opt_level=args.opt_level, verbosity=0)
+    net, optimizer = amp.initialize(net, optimizer, opt_level=args.opt_level, verbosity=0)
     
     init_epoch = 1
 
@@ -170,6 +169,7 @@ def train(gpu, args):
 
     for epoch in range(init_epoch, args.epochs+1):
         # Train
+        print("--> Epoch {}/{}".format(epoch, args.epochs))
         net.train()
 
         sampler_train.set_epoch(epoch)
@@ -195,6 +195,8 @@ def train(gpu, args):
             sample = {key: val.cuda(gpu) for key, val in sample.items()
                       if (val is not None) and key != 'base_name'}
 
+            sample["input"] = sample["rgb"]
+
             if epoch == 1 and args.warm_up:
                 warm_up_cnt += 1
 
@@ -208,17 +210,20 @@ def train(gpu, args):
 
             output = net(sample)
             
-            output['pred'] = output['pred'] * sample['net_mask']
+            output['pred'] = output['pred'] / 1000.0 * sample['net_mask']
+            sample['gt'] = sample['gt'] / 1000.0
 
-            loss_dep, loss_norm = loss(sample, output)
-
+            # loss_dep, loss_norm = loss(sample, output)
+            loss_sum, loss_val = loss(sample, output)
                 
-                loss_sum_norm = loss_sum_norm / loader_train.batch_size
-
+            # loss_sum_norm = loss_sum_norm / loader_train.batch_size
+            loss_sum_norm=0
 
             # Divide by batch size
             loss_sum = loss_sum / loader_train.batch_size
             loss_val = loss_val / loader_train.batch_size
+            # print("--> Loss sum {}".format(loss_sum))
+            print("--> Loss val {}".format(loss_val))
 
             with amp.scale_loss(loss_sum, optimizer) as scaled_loss:
                 scaled_loss.backward()
@@ -240,13 +245,33 @@ def train(gpu, args):
         if gpu == 0:
             pbar.close()
 
+            if epoch % 3 == 0:
+                # -- save visualization --
+                folder_name = os.path.join(args.save_dir, "epoch-{}".format(str(epoch)))
+                os.makedirs(folder_name, exist_ok=True)
+                rand_idx = np.random.randint(0, args.batch_size)
+
+                def depth_to_colormap(depth, max_depth):
+                    npy_depth = depth.detach().cpu().numpy()[0]
+                    vis = ((npy_depth / max_depth) * 255).astype(np.uint8)
+                    vis = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
+                    return vis
+
+                out = depth_to_colormap(output["pred"][rand_idx]*1000, 1500)
+                gt = depth_to_colormap(sample["gt"][rand_idx]*1000, 1500)
+                sparse = depth_to_colormap(sample["dep"][rand_idx], 1500)
+
+                cv2.imwrite(os.path.join(folder_name, "out.png"), out)
+                cv2.imwrite(os.path.join(folder_name, "sparse.png"), sparse)
+                cv2.imwrite(os.path.join(folder_name, "gt.png"), gt)
+
             for i in range(len(loss.loss_name)):
                 writer_train.add_scalar(
                     loss.loss_name[i], total_losses[i] / len(loader_train), epoch)
-            writer_train.add_scalar('normal_loss', loss_sum_norm.item(), epoch)
+            # writer_train.add_scalar('normal_loss', loss_sum_norm.item(), epoch)
             writer_train.add_scalar('lr', scheduler.get_last_lr()[0], epoch)
 
-            if ((epoch) % args.save_freq == 0)and (epoch>60):
+            if ((epoch) % args.save_freq == 0) or epoch==5 or epoch==args.epochs:
                 if args.save_full or epoch == args.epochs:
                     state = {
                         'net': net.module.state_dict(),
@@ -443,13 +468,14 @@ if __name__ == '__main__':
     os.environ["MASTER_PORT"] = args_config.port
     args_main = check_args(args_config)
 
-    # print('\n\n=== Arguments ===')
-    # cnt = 0
-    # for key in sorted(vars(args_main)):
-    #     print(key, ':',  getattr(args_main, key), end='  |  ')
-    #     cnt += 1
-    #     if (cnt + 1) % 5 == 0:
-    #         print('')
-    # print('\n')
+    print('\n\n=== Arguments ===')
+    cnt = 0
+    for key in sorted(vars(args_main)):
+        print(key, ':',  getattr(args_main, key), end='  |  ')
+        cnt += 1
+        if (cnt + 1) % 5 == 0:
+            print('')
+    print('\n')
+    time.sleep(5)
 
     main(args_main)

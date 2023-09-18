@@ -18,7 +18,7 @@ class CompletionFormer(nn.Module):
         self.prop_time = self.args.prop_time
         self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1
         self.use_prior = args.prior
-        self.with_norm = args.with_norm
+        self.with_norm = args.use_norm
         self.backbone = Backbone(args)
 
         if self.prop_time > 0:

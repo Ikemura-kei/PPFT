@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser(description='CompletionFormer')
 
 
 # Dataset
-parser.add_argument('--data_root',
+parser.add_argument('--dir_data',
                     type=str,
                     default='./dataset/NYUDepthV2_HDF5',
                     help='path to dataset')
@@ -23,7 +23,7 @@ parser.add_argument('--data_name',
                     type=str,
                     default='NYU',
                     # default='KITTIDC',
-                    choices=('NYU', 'KITTIDC'),
+                    choices=('NYU', 'KITTIDC', 'HAMMER'),
                     help='dataset name')
 parser.add_argument('--split_json',
                     type=str,
@@ -45,6 +45,18 @@ parser.add_argument('--top_crop',
                     default=0,
                     # default=100,
                     help='top crop size for KITTI dataset')
+parser.add_argument('--use_norm',
+                    action='store_true',
+                    default=False,
+                    help='whether or not to use normal maps, available for HAMMER')
+parser.add_argument('--use_pol',
+                    action='store_true',
+                    default=False,
+                    help='whether or not to use polarization representations, available for HAMMER')
+parser.add_argument('--data_txt',
+                    type=str,
+                    default='',
+                    help='the path list file used for HAMMER, the path to the file (that is, this argument) must contain a placeholder string called "MODE", which is for substitute for either "train", "val", or "test" during program execution')
 
 
 # Hardware
@@ -78,7 +90,7 @@ parser.add_argument('--no_multiprocessing',
 parser.add_argument('--model',
                     type=str,
                     default='CompletionFormer',
-                    choices=('CompletionFormer',),
+                    choices=('CompletionFormer', 'PDNE'),
                     help='main model name')
 parser.add_argument('--from_scratch',
                     action='store_true',
@@ -119,9 +131,41 @@ parser.add_argument('--legacy',
                     action='store_true',
                     default=False,
                     help='legacy code support for pre-trained models')
-
+parser.add_argument('--completionformer_mode', type=str, default="rgbd", help='the mode used for completionformer')
+parser.add_argument('--prior',
+                    action='store_true',
+                    default=False,
+                    help='whether to use prior')
+parser.add_argument('--pre_pvt',
+                    action='store_true',
+                    default=False,
+                    help='whether to use pvt')
+parser.add_argument('--pre_res',
+                    action='store_true',
+                    default=False,
+                    help='whether to use a pretrained resnet in completionformer')
+parser.add_argument('--direct_cat',
+                    action='store_true',
+                    default=False,
+                    help='whether to use direct concatenation for completionformer')
+parser.add_argument('--direct_align',
+                    action='store_true',
+                    default=False,
+                    help='NO IDEA WHAT THIS IS')
+parser.add_argument('--align',
+                    action='store_true',
+                    default=False,
+                    help='NO IDEA WHAT THIS IS')
+parser.add_argument('--layer0',
+                    action='store_true',
+                    default=False,
+                    help='NO IDEA WHAT THIS IS')
 
 # Training
+parser.add_argument('--loss',
+                    type=str,
+                    default='1.0*L1+1.0*L2',
+                    help='loss function configuration')
 parser.add_argument('--l1_weight',
                     type=float,
                     default=1.0)
@@ -184,7 +228,11 @@ parser.add_argument('--test_crop',
                     action='store_true',
                     default=False,
                     help='crop for test')
-
+parser.add_argument('--save_freq',
+                    type=int,
+                    default=10,
+                    # default=3,
+                    help='the number of epochs for one model saving')
 
 # Summary
 parser.add_argument('--num_summary',
@@ -196,7 +244,7 @@ parser.add_argument('--num_summary',
 # Optimizer
 parser.add_argument('--lr',
                     type=float,
-                    default=0.001,
+                    default=0.00024,
                     help='learning rate')
 parser.add_argument('--gamma',
                     type=float,
@@ -234,8 +282,6 @@ parser.add_argument('--no_warm_up',
                     action='store_false',
                     dest='warm_up',
                     help='no lr warm up')
-
-parser.add_argument('--milestones', type=int, nargs='+',default=[100,200,300])
 
 parser.add_argument('--step_size',
                     type=int,

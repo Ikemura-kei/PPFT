@@ -1,122 +1,163 @@
-import torch
-from torch.utils.data import Dataset
 import os
-import cv2
-import numpy as np
-import random
 import warnings
 
+import numpy as np
+import cv2
+import json
+import h5py
+from . import BaseDataset
 
-class HammerDataset(Dataset):
+import random
 
-    def __init__(self, args, paths_list_txt, path_to_viewing_dir):
-        super(HammerDataset, self).__init__()
-        
-        self.data_root = args.data_root
-        self.is_train = args.is_train
-        self.cropped_power = args.cropped_power
-        self.new_H = self.new_W = 2 ** self.cropped_power
-        self.use_min_max_norm = args.use_min_max_norm
-        # read data paths
-        files = open(paths_list_txt, "r").read().split("\n")[:-1] # assume the last line is an empty line, so discard
-        files = [f.replace("DATA_ROOT", self.data_root) for f in files]
-            
-        orig_len = len(files)
-            
-        print("--> Using {} percent of original data ({}), that is {}".format(self.data_percentage, orig_len, len(files)))
-        
-        # get paths to all required data
-        self.polarization_paths = [f.replace("rgb", "pol_npy").replace('.png', '.npy') for f in files]
-        self.norm_paths = [f.replace("rgb", "norm").replace('png', 'npy') for f in files]
-        self.depth_paths = [f.replace("rgb", "depth_d435") for f in files]
-        self.gt_depth_paths = [f.replace("rgb", "_gt") for f in files]
-        self.image_paths = files
-        self.viewing_dir = np.load(path_to_viewing_dir)
-        
-    def __getitem__(self, index):
-        
-        self.rand_int1 = np.random.randint(0, 512-1)
-        self.rand_int2 = np.random.randint(0, 512-1)
-        
-        if torch.is_tensor(index):
-            index = index.tolist()
-        
-        # read raw data, all as numpy arrays
-        polarization = np.load(self.polarization_paths[index])
-        phi_encode = np.concatenate([np.cos(2 * polarization[..., 3:6]), np.sin(2 * polarization[..., 3:6])], axis=2)
-        net_in = np.concatenate([polarization[..., 0:3], phi_encode, 
-            polarization[..., 6:9], polarization[..., 9:12]], axis=2)
+from PIL import Image
+import torch
+import torchvision.transforms as T
+import torchvision.transforms.functional as TF
 
-        # norm = cv2.imread(self.norm_paths[index], -1) # BGR, i.e. zyx, 0-(2^16-1) (mapping from -1 to 1)
-        norm = np.load(self.norm_paths[index])
-        depth = cv2.imread(self.depth_paths[index], -1) # in mm
-        gt_depth = cv2.imread(self.gt_depth_paths[index], -1)
-        # mask = np.ones_like(depth) if not os.path.exists(self.mask_paths[index]) else cv2.imread(self.mask_paths[index], -1) # mask may not exist
-        mask = np.ones_like(gt_depth)
-        mask[gt_depth<1e-3] = 0
-        image = cv2.imread(self.image_paths[index]) # read as rgb image (but is grayscale)
-        
-        # data_list = polarization, norm, depth, gt_depth, mask, image, self.viewing_dir
-        data_list = [net_in, norm, depth, gt_depth, mask, image, self.viewing_dir]
-        
-        # process the raw data
-        data_list[1] = data_list[1].astype(np.float32)
-        vecotr_magnitudes = np.sqrt(np.sum(np.square(data_list[1]), axis=2))
-        data_list[4][vecotr_magnitudes<=0.3] = 0 # filter outs vectors with too small magnitudes (most likely invalid)
-        data_list[1][data_list[3]==1] = data_list[1][data_list[3]==1] / np.linalg.norm(data_list[1], axis=2)[data_list[3]==1][:,np.newaxis] # perform normalization to constrain the vectors to have magnitudes of 1
-        data_list[1][data_list[3]==0] = 0 # mask out invalid data
-        data_list[2][data_list[2]<10] = 0 # get rid of anything having distance smaller than 1cm (10mm)
-        data_list[5] = data_list[5] / 255.0 # to [0, 1]
-        data_list[2] = data_list[2][:, :, np.newaxis]
-        data_list[3] = data_list[3][:, :, np.newaxis]
-        data_list[4] = data_list[4][:, :, np.newaxis]
+warnings.filterwarnings("ignore", category=UserWarning)
 
-        # Resize
-        data_list = [self.resize(i, self.new_W, self.new_H, mode='slice') for i in data_list]
+class HammerDataset(BaseDataset):
+    def __init__(self, args, mode):
+        """object initializer
 
-        if self.use_min_max_norm:
-            data_list[2] = data_list[2] / data_list[2].max()
+        Args:
+            args (obj): execution arguments, the used arguments are:
+                        * dir_data: the path to the root of the dataset
+                        * data_txt: the text file containing a list of paths to each data, there should be a "DATA_ROOT" placeholder to substitute the data root path into
+                        * path_to_vd: the path to the npy file containing the viewing direction data
+                        * use_norm: boolean indicating if the normals are used
+                        * use_pol: boolean indicating if the polarization data are used
+
+
+            mode (str): can be either 'train' or 'val' or 'test', which alters the behavior during data loading
+        """
+        super(HammerDataset, self).__init__(args, mode)
+
+        self.args = args
+        self.mode = mode
+
+        # -- the camera intrinsic parameters --
+        self.K = torch.Tensor([7.067553100585937500e+02, 7.075133056640625000e+02, 5.456326819328060083e+02, 3.899299663507044897e+02])
+
+        # -- the data files --
+        with open(args.data_txt.replace("MODE", mode), "r") as file:
+            files_names = file.read().split("\n")[:-1]
+
+        self.rgb_files = [s.replace("DATA_ROOT", args.dir_data) for s in files_names] # note that the original paths in the path list is pointing to the rgb images
         
+        PERCENTAGE = 1
+        if PERCENTAGE < (1-1e-6):
+            random.shuffle(self.rgb_files)
+            self.rgb_files = self.rgb_files[:int(len(self.rgb_files) * PERCENTAGE)]
+
+        self.sparse_depth_d435_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "depth_d435") for s in files_names]
+        self.sparse_depth_l515_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "depth_l515") for s in files_names]
+        self.sparse_depth_itof_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "depth_tof") for s in files_names]
+        self.gt_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "_gt") for s in files_names]
+        if self.args.use_pol:    
+            self.pol_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "pol_npy") for s in files_names] # note that the polarizatins are stored as npy files
+        if self.args.use_norm:
+            self.norm_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "norm").replace(".png", ".npy") for s in files_names] # note that the normals are stored as npy files
+
+    def __len__(self):
+        return len(self.rgb_files) * 3
+        # return 60
+
+    def __getitem__(self, idx):
+        """return data item
+
+        Args:
+            idx (int): the index of the date element within the mini-batch
+
+        Return:
+            output (dict): the output dictionary of four elements, which are
+                        * 'rgb': the pytorch tensor of the RGB 3-channel image data
+                        * 'dep': the pytorch tensor of the 1-channel sparse depth (i.e. to be completed)
+                        * 'gt': the pytorch tensor of the 1-channel groundtruth depth
+                        * 'K': the pytorch tensor of the camera intrinsic matrix, defined to be [fx, fy, cx, cy]
+                        * 'mask': the mask of invalid data in the groundtruth
+                        * 'pol': [IF use_pol IS TRUE] the pytorch tensor of the 7-channel polarization representation, otherwise all-zero
+                        * 'norm': [IF use_norm IS TRUE] the pytorch tensor of the 3-channel normal map, otherwise all-zero
+        """
+        true_idx = idx // 3
+        orig_idx = idx
+        idx = true_idx
+
         def np2tensor(sample):
             # HWC -> CHW
             sample_tensor = torch.from_numpy(sample.copy().astype(np.float32)).permute(2,0,1)
             return sample_tensor
-            
-        data_list = [np2tensor(sample) for sample in data_list]
-    
-            
-        if data_list[3].max() == 0:
-            # if we encounter all zero mask (possible since we do random cropping on the original data)
-            # we randomly set some masks to be 1
-            rand_x = np.random.randint(0, 511-50)
-            rand_y = np.random.randint(0, 511-50)
-            data_list[3][:, rand_y:rand_y+50, rand_x:rand_x+50] = 1
-            # raise Exception("Received all zero mask! Path: {}".format(self.mask_paths[index]))
-        return data_list
-
-    def resize(self, img, target_w, target_h, mode='bilinear'):
-        '''
-            img: h, w, c, c in BGR
-            w: target width
-            h: target height
-        '''
-        if mode == 'bilinear':
-            ch = img.shape[2]
-            img = cv2.resize(img, (target_w, target_h), cv2.INTER_LINEAR)
-            if ch == 1:
-                img = np.expand_dims(img, axis=2)
-        elif mode == 'slice':
-            ori_w = img.shape[1]
-            ori_h = img.shape[0]
-            w_interval = np.floor(ori_w/target_w).astype(int)
-            h_interval = np.floor(ori_h/target_h).astype(int)
-
-            img = img[::h_interval, ::w_interval, :]
-            new_h, new_w, _ = img.shape
-            img = img[(new_h-target_h)//2:target_h+(new_h-target_h)//2, 
-                      (new_w-target_w)//2:target_w+(new_w-target_w)//2, :]
-
-        return img
         
-    def __len__(self):
-        return len(self.polarization_paths)
+        # -- prepare sparse depth --
+        sparse_depth_file = None
+        depth_type = orig_idx % 3
+
+        if depth_type == 0:
+            sparse_depth_file = self.sparse_depth_d435_files[idx]
+        elif depth_type == 1:
+            sparse_depth_file = self.sparse_depth_l515_files[idx]
+        elif depth_type == 2:
+            sparse_depth_file = self.sparse_depth_itof_files[idx]
+
+        sparse_depth = cv2.imread(sparse_depth_file, -1)[:,:,None] # (H, W, 1)
+        sparse_depth = sparse_depth[::4,::4,...]
+        sparse_depth = np2tensor(sparse_depth) # (1, H, W)
+
+        # -- prepare gt depth --
+        gt = cv2.imread(self.gt_files[idx], -1)[:,:,None] # (H, W, 1)
+        gt = gt[::4,::4,...]
+        gt_clone = np.copy(gt)
+        gt = np2tensor(gt) # (1, H, W)
+
+        # -- prepare rgb --
+        rgb = cv2.imread(self.rgb_files[idx]) # (H, W, 3)
+        rgb = rgb[::4,::4,...]
+        rgb = np2tensor(rgb) # (3, H, W)
+
+        # -- prepare normals --
+        if self.args.use_norm:
+            norm = np.load(self.norm_files[idx]) # (H, W, 3)
+            norm = norm[::4,::4,...]
+            norm = np2tensor(norm) # (3, H, W)
+
+        # -- prepare intrinsics --
+        K = self.K.clone()
+
+        # -- prepare mask, which masks out invalid pixels in the groundtruth --
+        mask = np.ones_like(gt_clone) # (H, W, 1)
+        mask[gt_clone<1e-3] = 0
+        mask = np2tensor(mask) # (1, H, W)
+
+        # -- prepare polarization representation -- 
+        # QUESTION: What is the definition of the data contained in the polarization npy files?
+        if self.args.use_pol:
+            pol = np.load(self.pol_files[idx])
+            pol = pol[::4,::4,...]
+            phi_encode = np.concatenate([np.cos(2 * pol[..., 3:6]), np.sin(2 * pol[..., 3:6])], axis=2)
+            pol = np.concatenate([pol[..., 0:3], phi_encode, pol[..., 6:9], pol[..., 9:12]], axis=2)
+
+        # -- apply data augmentation --
+        if self.mode == "train":
+            t_rgb = T.Compose([
+                    T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+                ])
+            rgb = t_rgb(rgb)
+            
+        # -- return data --
+        # print("--> RGB size {}".format(rgb.shape))
+        # print("--> Sparse depth size {}".format(sparse_depth.shape))
+        # print("--> Groundtruth size {}".format(gt.shape))
+        # print("--> Mask size {}".format(mask.shape))
+        output = {'rgb': rgb, \
+                    'dep': sparse_depth, \
+                    'gt': gt, \
+                    'K': K, \
+                    'net_mask': mask}
+        
+        if self.args.use_pol:
+            output['pol'] = pol
+
+        if self.args.use_norm:
+            output['norm'] = norm
+
+        return output
