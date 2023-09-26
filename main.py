@@ -82,7 +82,7 @@ def train(gpu, args):
 
     # Initialize workers
     # NOTE : the worker with gpu=0 will do logging
-    dist.init_process_group(backend='nccl', init_method='tcp://localhost:10005',
+    dist.init_process_group(backend='nccl', init_method='tcp://localhost:10001',
                             world_size=args.num_gpus, rank=gpu)
     torch.cuda.set_device(gpu)
 
@@ -103,6 +103,12 @@ def train(gpu, args):
     # Network
     if args.model == 'CompletionFormer':
         net = CompletionFormer(args)
+    elif args.model == 'CompletionFormerFreezed':
+        net = CompletionFormer(args)
+        if args.pretrained_completionformer is not None:
+            net.load_state_dict(torch.load(args.pretrained_completionformer)['net'])
+            for p in net.parameters():
+                p.requires_grad = False
     elif args.model == 'PDNE':
         net = PDNE(args)
     elif args.model == 'VPT-V1':
@@ -199,6 +205,8 @@ def train(gpu, args):
                       if (val is not None) and key != 'base_name'}
 
             sample["input"] = sample["rgb"]
+            # print("--> Dep max {} min {}".format(torch.max(sample['dep']), torch.min(sample['dep'])))
+            # print("--> Rgb max {} min {}".format(torch.max(sample['rgb']), torch.min(sample['rgb'])))
 
             if epoch == 1 and args.warm_up:
                 warm_up_cnt += 1
@@ -210,11 +218,12 @@ def train(gpu, args):
 
             optimizer.zero_grad()
 
-
+            net.eval()
+            # with torch.no_grad():
             output = net(sample)
             
-            output['pred'] = output['pred'] / 1000.0 * sample['net_mask']
-            sample['gt'] = sample['gt'] / 1000.0
+            output['pred'] = output['pred']  * sample['net_mask']
+            sample['gt'] = sample['gt'] 
 
             # loss_dep, loss_norm = loss(sample, output)
             loss_sum, loss_val = loss(sample, output)
@@ -260,9 +269,10 @@ def train(gpu, args):
                     vis = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
                     return vis
 
-                out = depth_to_colormap(output["pred"][rand_idx]*1000, 1500)
-                gt = depth_to_colormap(sample["gt"][rand_idx]*1000, 1500)
-                sparse = depth_to_colormap(sample["dep"][rand_idx], 1500)
+                out = depth_to_colormap(output["pred"][rand_idx], 2.6)
+                print("--> Output max {} min {}".format(torch.max(output["pred"][rand_idx]), torch.min(output["pred"][rand_idx])))
+                gt = depth_to_colormap(sample["gt"][rand_idx], 2.6)
+                sparse = depth_to_colormap(sample["dep"][rand_idx], 2.6)
 
                 cv2.imwrite(os.path.join(folder_name, "out.png"), out)
                 cv2.imwrite(os.path.join(folder_name, "sparse.png"), sparse)

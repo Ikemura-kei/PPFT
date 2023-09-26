@@ -11,8 +11,9 @@ class CompletionFormerVPTV1(nn.Module):
 
         self.foundation = CompletionFormer(args)
         self.foundation.load_state_dict(torch.load(args.pretrained_completionformer)['net'])
-        # for param in self.foundation.parameters():
-        #     param.requires_grad = False
+        self.foundation.eval()
+        for param in self.foundation.parameters():
+            param.requires_grad = False
 
         self.prop_time = self.args.prop_time
         self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1
@@ -23,21 +24,31 @@ class CompletionFormerVPTV1(nn.Module):
         if self.prop_time > 0:
             self.prop_layer = self.foundation.prop_layer
 
-        cnt = 0
-        for param in self.backbone.parameters():
-            print(param.requires_grad)
-            cnt+=1
-            if cnt > 100:
-                break
+        # cnt = 0
+        # for param in self.backbone.parameters():
+        #     print(param.requires_grad)
+        #     cnt+=1
+        #     if cnt > 100:
+        #         break
     
     def forward(self, sample):
         rgb = sample['rgb']
         dep = sample['dep']
         pol = sample['pol']
-        print("--> Pol shape {}".format(pol.shape))
+        # print("--> Pol shape {}".format(pol.shape))
+        # print("--> Pol contains NaN? {}".format(torch.any(torch.isnan(pol))))
+        # print("--> Rgb contains NaN? {}".format(torch.any(torch.isnan(rgb))))
         pred_init, guide, confidence = self.backbone(rgb, dep, pol)
+        # print("--> Pred init contains NaN? {}".format(torch.any(torch.isnan(pred_init))))
+        # print("--> Guide contains NaN? {}".format(torch.any(torch.isnan(guide))))
+        # print("--> Confidence contains NaN? {}".format(torch.any(torch.isnan(confidence))))
         pred_init = pred_init + dep
+        # print("--> Dep contains NaN? {}".format(torch.any(torch.isnan(dep))))
+        # print("--> Pred init post contains NaN? {}".format(torch.any(torch.isnan(pred_init))))
 
+        # -- set freezed layers to be evaluation mode --
+        self.prop_layer.eval()
+        
         # Diffusion
         y_inter = [pred_init, ]
         conf_inter = [confidence, ]
@@ -47,7 +58,7 @@ class CompletionFormerVPTV1(nn.Module):
         else:
             y = pred_init
             offset, aff, aff_const = torch.zeros_like(y), torch.zeros_like(y), torch.zeros_like(y).mean()
-
+        # print("--> Y contains NaN? {}".format(torch.any(torch.isnan(y))))
         # Remove negative depth
         y = torch.clamp(y, min=0)
         # best at first

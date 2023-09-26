@@ -45,7 +45,7 @@ class HammerDataset(BaseDataset):
 
         self.rgb_files = [s.replace("DATA_ROOT", args.dir_data) for s in files_names] # note that the original paths in the path list is pointing to the rgb images
         
-        PERCENTAGE = 0.08
+        PERCENTAGE = 1.0
         if PERCENTAGE < (1-1e-6):
             random.shuffle(self.rgb_files)
             self.rgb_files = self.rgb_files[:int(len(self.rgb_files) * PERCENTAGE)]
@@ -68,7 +68,7 @@ class HammerDataset(BaseDataset):
 
     def __len__(self):
         return len(self.rgb_files) * 3
-        # return 60
+        # return 120
 
     def __getitem__(self, idx):
         """return data item
@@ -86,6 +86,7 @@ class HammerDataset(BaseDataset):
                         * 'pol': [IF use_pol IS TRUE] the pytorch tensor of the 7-channel polarization representation, otherwise all-zero
                         * 'norm': [IF use_norm IS TRUE] the pytorch tensor of the 3-channel normal map, otherwise all-zero
         """
+        # idx = 6000
         true_idx = idx // 3
         orig_idx = idx
         idx = true_idx
@@ -107,12 +108,12 @@ class HammerDataset(BaseDataset):
             sparse_depth_file = self.sparse_depth_itof_files[idx]
 
         sparse_depth = cv2.imread(sparse_depth_file, -1)[:,:,None] # (H, W, 1)
-        sparse_depth = sparse_depth[::4,::4,...]
+        sparse_depth = sparse_depth[::4,::4,...] / 1000.0
         sparse_depth = np2tensor(sparse_depth) # (1, H, W)
 
         # -- prepare gt depth --
         gt = cv2.imread(self.gt_files[idx], -1)[:,:,None] # (H, W, 1)
-        gt = gt[::4,::4,...]
+        gt = gt[::4,::4,...] / 1000.0
         gt_clone = np.copy(gt)
         gt = np2tensor(gt) # (1, H, W)
 
@@ -148,11 +149,15 @@ class HammerDataset(BaseDataset):
                 pass
     
         # -- apply data augmentation --
-        if self.mode == "train":
-            t_rgb = T.Compose([
-                    T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
-                ])
-            rgb = t_rgb(rgb)
+        rgb = rgb / 255.0
+        t_rgb = T.Compose([
+                T.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+            ])
+        rgb = t_rgb(rgb)
+
+        if self.args.use_pol:
+            if self.args.pol_rep == 'grayscale-4':
+                pol = pol / 255.0
             
         # -- return data --
         # print("--> RGB size {}".format(rgb.shape))
