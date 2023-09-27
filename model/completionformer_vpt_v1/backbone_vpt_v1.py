@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .resnet_cbam import BasicBlock
-from .pvt import PVT
+from .pvt_vpt_v1 import PVTVPTV1
 from .backbone import Backbone
 
 
@@ -92,6 +92,9 @@ class BackboneVPTV1(nn.Module):
             self.prompt = nn.Parameter(torch.zeros([1, 48, 208, 272])) # TODO: make the dimensions flexible
             nn.init.uniform_(self.prompt)
 
+            self.dep_prompt = nn.Parameter(torch.zeros([1, 16, 208, 272])) # TODO: make the dimensions flexible
+            nn.init.uniform_(self.dep_prompt)
+
             if self.args.pol_rep == 'grayscale-4':
                 self.conv1_pol_for_rgb = conv_bn_relu(4, 16, kernel=3, stride=1, padding=1,
                                           bn=False)
@@ -107,10 +110,10 @@ class BackboneVPTV1(nn.Module):
                 #                           bn=False)
                 # self.conv8_pol_for_rgb = conv_bn_relu(128, 256, kernel=1, stride=1, padding=0,
                 #                           bn=False)
-                # self.conv1_pol_for_dep = conv_bn_relu(4, 16, kernel=3, stride=1, padding=1,
-                #                           bn=False)
-                # self.conv2_pol_for_dep = conv_bn_relu(16, 16, kernel=3, stride=1, padding=1,
-                #                           bn=False)
+                self.conv1_pol_for_dep = conv_bn_relu(4, 16, kernel=3, stride=1, padding=1,
+                                          bn=False)
+                self.conv2_pol_for_dep = conv_bn_relu(16, 16, kernel=3, stride=1, padding=1,
+                                          bn=False)
             elif self.args.pol_rep == 'rgb-12':
                 self.conv1_pol_for_rgb = conv_bn_relu(12, 48, kernel=3, stride=1, padding=1,
                                           bn=False)
@@ -127,8 +130,9 @@ class BackboneVPTV1(nn.Module):
             self.conv1 = foundation.conv1
         else:
             raise TypeError(mode)
-
-        self.former = foundation.former
+        
+        # self.former = foundation.former
+        self.former = PVTVPTV1(in_chans=64, patch_size=2, pretrained='./model/completionformer_original/pretrained/pvt.pth', foundation=foundation.former)
 
         # Shared Decoder
         # 1/16
@@ -182,15 +186,21 @@ class BackboneVPTV1(nn.Module):
             # fe1_rgb = fe1_rgb + self.prompt.expand(B, -1, -1, -1)
 
             # -- v1.1x: polarization feature with gradient update --
+            # fe1_pol_for_rgb = self.conv4_pol_for_rgb(\
+            #                 self.conv3_pol_for_rgb(\
+            #                 self.conv2_pol_for_rgb(\
+            #                 self.conv1_pol_for_rgb(pol))))
+            # -- v1.12: also add prompt --
             fe1_pol_for_rgb = self.conv4_pol_for_rgb(\
                             self.conv3_pol_for_rgb(\
                             self.conv2_pol_for_rgb(\
-                            self.conv1_pol_for_rgb(pol))))
-            fe1_rgb = fe1_rgb + fe1_pol_for_rgb
+                            self.conv1_pol_for_rgb(pol)))) + self.prompt
 
             # -- v1.11: direct addition of the polarization feature with the rgb feature --
-            
-            # -- v1.12: fusion via ViPT way --
+            fe1_rgb = fe1_rgb + fe1_pol_for_rgb
+
+
+            # -- v1.13: fusion via ViPT way --
             # x0 = fe1_rgb.contiguous()
             # x0 = self.conv0_0(x0)
             # x1 = fe1_pol_for_rgb.contiguous()
@@ -200,9 +210,12 @@ class BackboneVPTV1(nn.Module):
             self.conv1_dep.eval()
             fe1_dep = self.conv1_dep(depth)
 
-            # fe1_pol_for_dep = self.conv2_pol_for_dep(self.conv1_pol_for_dep(pol))
+            # -- v1.14: also with pol features added to dep
+            # -- v1.15: add prompt to dep feature as well
+            fe1_pol_for_dep = self.conv2_pol_for_dep(self.conv1_pol_for_dep(pol)) + self.dep_prompt
             # fe1_dep = fe1_dep + fe1_pol_for_dep
-            print("--> Dimension of fe1_rgb {}".format(fe1_rgb.shape))
+
+            # print("--> Dimension of fe1_rgb {}".format(fe1_rgb.shape))
             fe1 = torch.cat((fe1_rgb, fe1_dep), dim=1)
 
             self.conv1.eval()
@@ -215,7 +228,8 @@ class BackboneVPTV1(nn.Module):
             raise TypeError(self.mode)
 
         self.former.eval()
-        fe2, fe3, fe4, fe5, fe6, fe7 = self.former(fe1)
+        # fe2, fe3, fe4, fe5, fe6, fe7 = self.former(fe1)
+        fe2, fe3, fe4, fe5, fe6, fe7 = self.former(fe1, torch.cat([fe1_pol_for_rgb, fe1_pol_for_dep], dim=1))
         # Shared Decoding
         self.dec6.eval()
         self.dec5.eval()
