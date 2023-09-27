@@ -91,7 +91,7 @@ parser.add_argument('--no_multiprocessing',
 parser.add_argument('--model',
                     type=str,
                     default='CompletionFormer',
-                    choices=('CompletionFormer', 'PDNE', 'VPT-V1', 'CompletionFormerFreezed'),
+                    choices=('CompletionFormer', 'PDNE', 'VPT-V1', 'CompletionFormerFreezed', 'VPT-V2'),
                     help='main model name')
 parser.add_argument('--from_scratch',
                     action='store_true',
