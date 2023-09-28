@@ -15,6 +15,8 @@ parser = argparse.ArgumentParser(description='CompletionFormer')
 
 
 # Dataset
+paerser.add_argument('--data_percentage', type=float, default=1.0, help='the percentage of the entire dataset used')
+
 parser.add_argument('--dir_data',
                     type=str,
                     default='./dataset/NYUDepthV2_HDF5',
