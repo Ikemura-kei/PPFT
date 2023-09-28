@@ -10,7 +10,7 @@ class CompletionFormerVPTV2(nn.Module):
         self.args = args
 
         self.foundation = CompletionFormer(args)
-        self.foundation.load_state_dict(torch.load(args.pretrained_completionformer)['net'])
+        self.foundation.load_state_dict(torch.load(args.pretrained_completionformer, map_location='cpu')['net'])
         self.foundation.eval()
         # for param in self.foundation.parameters():
         #     param.requires_grad = False

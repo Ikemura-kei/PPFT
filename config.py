@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser(description='CompletionFormer')
 
 
 # Dataset
-paerser.add_argument('--data_percentage', type=float, default=1.0, help='the percentage of the entire dataset used')
+parser.add_argument('--data_percentage', type=float, default=1.0, help='the percentage of the entire dataset used')
 
 parser.add_argument('--dir_data',
                     type=str,
@@ -90,6 +90,7 @@ parser.add_argument('--no_multiprocessing',
 
 
 # Network
+parser.add_argument('--pretrain_list_file', type=str, default=None, help="the text file containing a list of ckeckpoints to be evaluated in batch")
 parser.add_argument('--model',
                     type=str,
                     default='CompletionFormer',

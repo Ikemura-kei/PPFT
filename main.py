@@ -33,6 +33,8 @@ import os
 from model.completionformer_original.completionformer import CompletionFormer
 from model.completionformer_vpt_v1.completionformer_vpt_v1 import CompletionFormerVPTV1
 from model.completionformer_vpt_v2.completionformer_vpt_v2 import CompletionFormerVPTV2
+from summary.cfsummary import CompletionFormerSummary
+from metric.cfmetric import CompletionFormerMetric
 os.environ["CUDA_VISIBLE_DEVICES"] = args_config.gpus
 os.environ["MASTER_ADDR"] = args_config.address
 os.environ["MASTER_PORT"] = args_config.port
@@ -317,43 +319,37 @@ def train(gpu, args):
         writer_train.close()
         writer_val.close()
 
+def load_pretrain(args, net, ckpt):
+    assert os.path.exists(ckpt), \
+            "file not found: {}".format(ckpt)
 
-def test(args):
-    # Prepare dataset
-    data = get_data(args)
+    checkpoint = torch.load(ckpt, map_location='cpu')
+    key_m, key_u = net.load_state_dict(checkpoint['net'], strict=False)
 
-    data_test = data(args, 'test')
+    if key_u:
+        print('Unexpected keys :')
+        print(key_u)
 
-    loader_test = DataLoader(dataset=data_test, batch_size=args.batch_size,
-                             shuffle=False, num_workers=args.num_threads)
+    if key_m:
+        print('Missing keys :')
+        print(key_m)
+        raise KeyError
 
-    # Network
-    net = PDNE(args)
+    print('Checkpoint loaded from {}!'.format(ckpt))
 
-    # device = torch.device("cuda:{}".format(device_ids[0]) if torch.cuda.is_available() else "cpu")
-    net.cuda()
+    return net
 
-    if args.pretrain is not None:
-        assert os.path.exists(args.pretrain), \
-            "file not found: {}".format(args.pretrain)
-
-        checkpoint = torch.load(args.pretrain)
-        print('Start epoch:', checkpoint['epoch'])
-        net.load_state_dict(checkpoint['net'], strict=False)
-        print('Checkpoint loaded from {}!'.format(args.pretrain))
-
+def test_one_model(args, net, loader_test, save_samples, epoch_idx=0, summary_writer=None):
     net = nn.DataParallel(net)
 
-    metric = PDNEMetric(args)
+    metric = CompletionFormerMetric(args)
 
+    vis_dir = os.path.join(args.save_dir, 'test', 'visualization')
     try:
-        os.makedirs(args.save_dir, exist_ok=True)
-        os.makedirs(args.save_dir + '/test', exist_ok=True)
+        os.makedirs(vis_dir, exist_ok=True)
+        result_file = open(os.path.join(args.save_dir, 'test', 'results.txt'), 'w')
     except OSError:
         pass
-
-    total_metrics = np.zeros(np.array(metric.metric_name).shape)
-    total_metrics_missing = np.zeros(np.array(metric.metric_name).shape)
 
     net.eval()
 
@@ -364,49 +360,25 @@ def test(args):
     t_total = 0
 
     init_seed()
+    total_metrics = None
     for batch, sample in enumerate(loader_test):
-        base_name = sample['base_name']
         sample = {key: val.cuda() for key, val in sample.items()
-                  if (val is not None) and key != 'base_name'}
-        sample['base_name'] = base_name
+                  if val is not None}
 
-        if args.mode == 'pd':
-            image_coordinate = sample['coordinate']
-            viewing_direction = sample['vd']
-            aop = sample['input'][:, 5:6, ...]
-            net_in = get_net_input_cuda(
-                sample['input'], image_coordinate, viewing_direction, args)
-            sample['input'] = net_in
-        else: aop=None
 
         t0 = time.time()
         with torch.no_grad():
             output = net(sample)
         t1 = time.time()
 
-        # vis the output
-
-        if args.mode == 'pd' or 'grayd':
-            sparse_type = args.sparse_dir.split('spw2_sparse_')[1]
-
-            if args.polar:
-                input_type = 'polar'
-            else:
-                input_type = 'gray'
-            save_dir = os.path.join(args.save_dir, args.vis_dir)
-            save_output(sample, output, aop, save_dir, input_type, sparse_type, args.with_norm)
-
         t_total += (t1 - t0)
 
-        # print(output['pred'].shape)
         metric_val = metric.evaluate(sample, output, 'test')
-        # print(metric_val[0])
-        metric_val_missing = metric.evaluate(sample, output, 'on_missing')
 
-        total_metrics = np.add(total_metrics, metric_val[0].detach().cpu())
-
-        total_metrics_missing = np.add(
-            total_metrics_missing, metric_val_missing[0].detach().cpu())
+        if total_metrics is None:
+            total_metrics = metric_val[0]
+        else:
+            total_metrics += metric_val[0]
 
         current_time = time.strftime('%y%m%d@%H:%M:%S')
         error_str = '{} | Test'.format(current_time)
@@ -414,23 +386,77 @@ def test(args):
             pbar.set_description(error_str)
             pbar.update(loader_test.batch_size)
 
+        if batch in save_samples:
+            dep = sample['dep'] # in m
+            gt = sample['gt'] # in m
+            pred = output['pred'] # in m
+
+            def depth2vis(depth, MAX_DEPTH=2.15):
+                depth = depth.detach().cpu().numpy()[0].transpose(1,2,0)
+                vis = ((depth / MAX_DEPTH) * 255).astype(np.uint8)
+                vis = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
+                return vis
+
+            gt_vis = depth2vis(gt)
+            dep_vis = depth2vis(dep)
+            pred_vis = depth2vis(pred)
+
+            os.makedirs(os.path.join(vis_dir, 'e{}'.format(epoch_idx)), exist_ok=True)
+            cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_gt.png'.format(batch)), gt_vis)
+            cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_pred.png'.format(batch)), pred_vis)
+            cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_dep.png'.format(batch)), dep_vis)
+
     pbar.close()
-    mean_metrics = np.divide(total_metrics, len(loader_test))
-    mean_metrics_missing = np.divide(total_metrics_missing, len(loader_test))
-    metrics_dict = {}
-    metrics_dict_missing = {}
 
-    for i in range(len(mean_metrics)):
-        name = metric.metric_name[i]
-        metrics_dict[name] = mean_metrics[i]
-        metrics_dict_missing[name] = mean_metrics_missing[i]
+    t_avg = t_total / num_sample
+    print('Elapsed time : {} sec, '
+          'Average processing time : {} sec'.format(t_total, t_avg))
 
-    # writer_test.update(args.epochs, sample, output)
-    return metrics_dict, metrics_dict_missing
-    # t_avg = t_total / num_sample
-    # print('Elapsed time : {} sec, '
-    #       'Average processing time : {} sec'.format(t_total, t_avg))
+    metric_avg = total_metrics / num_sample
+    if summary_writer is not None:
+        for i, metric_name in enumerate(metric.metric_name):
+            summary_writer.add_scalar('test/{}'.format(metric_name), metric_avg[i], epoch_idx)
 
+    return metric_avg
+
+def test(args):
+    # -- prepare dataset --
+    data_test = HammerDataset(args, 'test')
+    loader_test = DataLoader(dataset=data_test, batch_size=1,
+                             shuffle=False, num_workers=args.num_threads)
+
+    # -- prepare network --
+    if args.model == 'VPT-V1':
+        pass
+    elif args.model == 'VPT-V2':
+        net = CompletionFormerVPTV2(args)
+    elif args.model == 'CompletionFormer':
+        pass
+    elif args.model == 'PDNE':
+        pass
+    elif args.model == 'CompletionFormerFreezed':
+        pass
+    else:
+        raise TypeError(args.model, ['CompletionFormer', 'PDNE', 'VPT-V1', 'CompletionFormerFreezed', 'VPT-V2'])
+
+    net.to(0)
+
+    if args.pretrain is not None:
+        net = load_pretrain(args, net, args.pretrain)
+        save_samples = np.random.randint(0, len(loader_test), 10)
+        test_one_model(args, net, loader_test, save_samples)
+
+    elif args.pretrain_list_file is not None:
+        summary_writer = SummaryWriter(log_dir=os.path.join(args.save_dir, 'test', 'logs'))
+
+        pretrain_list = open(args.pretrain_list_file, 'r').read().split("\n")
+        save_samples = np.random.randint(0, len(loader_test), 3)
+
+        for line in pretrain_list:
+            epoch_idx = line.split(" - ")[0]
+            ckpt = line.split(" - ")[1]
+            net = load_pretrain(args, net, ckpt)
+            test_one_model(args, net, loader_test, save_samples, epoch_idx, summary_writer)
 
 def main(args):
     init_seed()
@@ -453,29 +479,7 @@ def main(args):
 
         args.pretrain = '{}/model_best.pt'.format(args.save_dir)
 
-    else:
-        # test_sparsity_list = ['spw2_sparse_ranged_tof', 'spw2_sparse_ranged_feature',
-        #                     'spw2_sparse_ranged_random', 'spw2_sparse_holes', 'spw2_sparse_ranged_fov']
-        # test_sparsity_list = ['spw2_sparse_tof']
-        test_sparsity_list = [args.sparse_dir]
-        os.makedirs(args.save_dir, exist_ok=True)
-        result = open(os.path.join(args.save_dir, 'test_result.txt'), 'w+')
-        if args.mixed:
-            args.mixed = False
-        for i in test_sparsity_list:
-            args.sparse_dir = i
-            args.vis_dir = 'vis_'+i.split('spw2_sparse_')[1]
-            metric_dict, metric_dict_missing = test(args)
-            if args.polar:
-                mode = 'polar'
-            else:
-                mode = 'gray'
-            result.writelines(i+' '+mode+'\n')
-
-            for i in metric_dict.keys():
-                current_str = f'{i}: {metric_dict[i]}    {i}_on_missing: {metric_dict_missing[i]}'+'\n'
-                result.writelines(current_str)
-        result.close()
+    test(args)
 
 
 if __name__ == '__main__':
