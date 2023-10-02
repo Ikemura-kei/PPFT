@@ -45,7 +45,7 @@ class HammerDataset(BaseDataset):
 
         self.rgb_files = [s.replace("DATA_ROOT", args.dir_data) for s in files_names] # note that the original paths in the path list is pointing to the rgb images
         
-        PERCENTAGE = 1.0
+        PERCENTAGE = args.data_percentage
         if PERCENTAGE < (1-1e-6):
             random.shuffle(self.rgb_files)
             self.rgb_files = self.rgb_files[:int(len(self.rgb_files) * PERCENTAGE)]
