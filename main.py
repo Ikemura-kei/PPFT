@@ -33,6 +33,7 @@ import os
 from model.completionformer_original.completionformer import CompletionFormer
 from model.completionformer_vpt_v1.completionformer_vpt_v1 import CompletionFormerVPTV1
 from model.completionformer_vpt_v2.completionformer_vpt_v2 import CompletionFormerVPTV2
+from model.completionformer_vpt_v2.completionformer_vpt_v2_1 import CompletionFormerVPTV2_1
 os.environ["CUDA_VISIBLE_DEVICES"] = args_config.gpus
 os.environ["MASTER_ADDR"] = args_config.address
 os.environ["MASTER_PORT"] = args_config.port
@@ -83,7 +84,7 @@ def train(gpu, args):
 
     # Initialize workers
     # NOTE : the worker with gpu=0 will do logging
-    dist.init_process_group(backend='nccl', init_method='tcp://localhost:10003',
+    dist.init_process_group(backend='nccl', init_method='tcp://localhost:10001',
                             world_size=args.num_gpus, rank=gpu)
     torch.cuda.set_device(gpu)
 
@@ -115,7 +116,7 @@ def train(gpu, args):
     elif args.model == 'VPT-V1':
         net = CompletionFormerVPTV1(args)
     elif args.model == 'VPT-V2':
-        net = CompletionFormerVPTV2(args)
+        net = CompletionFormerVPTV2_1(args)
     else:
         raise TypeError(args.model, ['CompletionFormer', 'PDNE', 'VPT-V1'])
 
