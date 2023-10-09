@@ -94,7 +94,7 @@ parser.add_argument('--pretrain_list_file', type=str, default=None, help="the te
 parser.add_argument('--model',
                     type=str,
                     default='CompletionFormer',
-                    choices=('CompletionFormer', 'PDNE', 'VPT-V1', 'CompletionFormerFreezed', 'VPT-V2'),
+                    choices=('CompletionFormer', 'PDNE', 'VPT-V1', 'CompletionFormerFreezed', 'PromptFinetune', 'VPT-V2'),
                     help='main model name')
 parser.add_argument('--from_scratch',
                     action='store_true',
@@ -236,7 +236,7 @@ parser.add_argument('--test_crop',
                     help='crop for test')
 parser.add_argument('--save_freq',
                     type=int,
-                    default=10,
+                    default=5,
                     # default=3,
                     help='the number of epochs for one model saving')
 

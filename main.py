@@ -34,6 +34,7 @@ from model.completionformer_original.completionformer import CompletionFormer
 from model.completionformer_vpt_v1.completionformer_vpt_v1 import CompletionFormerVPTV1
 from model.completionformer_vpt_v2.completionformer_vpt_v2 import CompletionFormerVPTV2
 from model.completionformer_vpt_v2.completionformer_vpt_v2_1 import CompletionFormerVPTV2_1
+from model.completionformer_prompt_finetune.completionformer_prompt_finetune import CompletionFormerPromptFinetune
 from summary.cfsummary import CompletionFormerSummary
 from metric.cfmetric import CompletionFormerMetric
 os.environ["CUDA_VISIBLE_DEVICES"] = args_config.gpus
@@ -119,8 +120,10 @@ def train(gpu, args):
         net = CompletionFormerVPTV1(args)
     elif args.model == 'VPT-V2':
         net = CompletionFormerVPTV2_1(args)
+    elif args.model == 'PromptFinetune':
+        net = CompletionFormerPromptFinetune(args)
     else:
-        raise TypeError(args.model, ['CompletionFormer', 'PDNE', 'VPT-V1'])
+        raise TypeError(args.model, ['CompletionFormer', 'PDNE', 'VPT-V1', 'PromptFintune', 'VPT-V2'])
 
     net.cuda(gpu)
 
@@ -204,15 +207,12 @@ def train(gpu, args):
             log_loss = 0.0
 
         init_seed(seed=int(time.time()))
-        # print("Before load")
+
         for batch, sample in enumerate(loader_train):
-            # print("Finish load")
             sample = {key: val.cuda(gpu) for key, val in sample.items()
                       if (val is not None) and key != 'base_name'}
 
             sample["input"] = sample["rgb"]
-            # print("--> Dep max {} min {}".format(torch.max(sample['dep']), torch.min(sample['dep'])))
-            # print("--> Rgb max {} min {}".format(torch.max(sample['rgb']), torch.min(sample['rgb'])))
 
             if epoch == 1 and args.warm_up:
                 warm_up_cnt += 1
@@ -224,24 +224,18 @@ def train(gpu, args):
 
             optimizer.zero_grad()
 
-            net.eval()
-            # with torch.no_grad():
             output = net(sample)
             
             output['pred'] = output['pred']  * sample['net_mask']
             sample['gt'] = sample['gt'] 
 
-            # loss_dep, loss_norm = loss(sample, output)
             loss_sum, loss_val = loss(sample, output)
                 
-            # loss_sum_norm = loss_sum_norm / loader_train.batch_size
             loss_sum_norm=0
 
             # Divide by batch size
             loss_sum = loss_sum / loader_train.batch_size
             loss_val = loss_val / loader_train.batch_size
-            # print("--> Loss sum {}".format(loss_sum))
-            print("--> Loss val {}".format(loss_val))
 
             with amp.scale_loss(loss_sum, optimizer) as scaled_loss:
                 scaled_loss.backward()
@@ -263,7 +257,7 @@ def train(gpu, args):
         if gpu == 0:
             pbar.close()
 
-            if epoch % 1 == 0:
+            if epoch % 2 == 0:
                 # -- save visualization --
                 folder_name = os.path.join(args.save_dir, "epoch-{}".format(str(epoch)))
                 os.makedirs(folder_name, exist_ok=True)
@@ -276,7 +270,6 @@ def train(gpu, args):
                     return vis
 
                 out = depth_to_colormap(output["pred"][rand_idx], 2.6)
-                print("--> Output max {} min {}".format(torch.max(output["pred"][rand_idx]), torch.min(output["pred"][rand_idx])))
                 gt = depth_to_colormap(sample["gt"][rand_idx], 2.6)
                 sparse = depth_to_colormap(sample["dep"][rand_idx], 2.6)
 
@@ -287,7 +280,7 @@ def train(gpu, args):
             for i in range(len(loss.loss_name)):
                 writer_train.add_scalar(
                     loss.loss_name[i], total_losses[i] / len(loader_train), epoch)
-            # writer_train.add_scalar('normal_loss', loss_sum_norm.item(), epoch)
+
             writer_train.add_scalar('lr', scheduler.get_last_lr()[0], epoch)
 
             if ((epoch) % args.save_freq == 0) or epoch==5 or epoch==args.epochs:
