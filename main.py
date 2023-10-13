@@ -77,6 +77,7 @@ def check_args(args):
             new_args.dir_data = args.dir_data
             new_args.resume = args.resume
             new_args.layer0=False
+            new_args.save_freq = 2
 
     return new_args
 
@@ -430,8 +431,10 @@ def test(args):
         pass
     elif args.model == 'CompletionFormerFreezed':
         pass
+    elif args.model == 'PromptFinetune':
+        net = CompletionFormerPromptFinetune(args)
     else:
-        raise TypeError(args.model, ['CompletionFormer', 'PDNE', 'VPT-V1', 'CompletionFormerFreezed', 'VPT-V2'])
+        raise TypeError(args.model, ['CompletionFormer', 'PDNE', 'VPT-V1', 'CompletionFormerFreezed', 'VPT-V2', 'PromptFinetune'])
 
     net.to(0)
 

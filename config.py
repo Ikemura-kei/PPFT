@@ -236,7 +236,7 @@ parser.add_argument('--test_crop',
                     help='crop for test')
 parser.add_argument('--save_freq',
                     type=int,
-                    default=5,
+                    default=2,
                     # default=3,
                     help='the number of epochs for one model saving')
 
