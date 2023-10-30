@@ -94,7 +94,6 @@ parser.add_argument('--pretrain_list_file', type=str, default=None, help="the te
 parser.add_argument('--model',
                     type=str,
                     default='CompletionFormer',
-                    choices=('CompletionFormer', 'PDNE', 'VPT-V1', 'CompletionFormerFreezed', 'PromptFinetune', 'VPT-V2'),
                     help='main model name')
 parser.add_argument('--from_scratch',
                     action='store_true',
@@ -355,6 +354,13 @@ parser.add_argument('--norm',
 parser.add_argument('--pretrain_path_comp',
                     type=str,
                     default='bn')
+
+parser.add_argument('--use_single',
+                    action='store_true')
+
+parser.add_argument('--depth_type',
+                    type=int,
+                    default=0)
 
 
 args = parser.parse_args()
