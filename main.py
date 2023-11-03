@@ -37,6 +37,9 @@ from model.completionformer_vpt_v2.completionformer_vpt_v2 import CompletionForm
 from model.completionformer_vpt_v2.completionformer_vpt_v2_1 import CompletionFormerVPTV2_1
 from model.completionformer_isd_prompt_finetune.completionformer_isd_prompt_finetune import CompletionFormerISDPromptFinetune
 from model.completionformer_isdv2.completionformer_isdv2 import CompletionFormerISDPromptFinetuneV2
+from model.completionformer_isdv2_freeze.completionformer_isdv2 import CompletionFormerISDPromptFinetuneV2Freeze
+from model.completionformer_mp.completionformer_isdv2 import CompletionFormerISDPromptFinetuneMP
+from utils.depth2normal import depth2norm
 
 from summary.cfsummary import CompletionFormerSummary
 from metric.cfmetric import CompletionFormerMetric
@@ -53,6 +56,9 @@ torch.backends.cudnn.benchmark = False
 best_rmse = 100
 best_mae = 100
 
+camera_matrix = np.array([[7.067553100585937500e+02, 0.000000000000000000e+00, 5.456326819328060083e+02],
+                [0.000000000000000000e+00, 7.075133056640625000e+02, 3.899299663507044897e+02],
+                [0.000000000000000000e+00, 0.000000000000000000e+00, 1.000000000000000000e+00]])
 # Minimize randomness
 
 def init_seed(seed=None):
@@ -127,6 +133,14 @@ def train(gpu, args):
         net = CompletionFormerISDPromptFinetune(args)
     elif args.model == 'ISDPromptFinetuneV2':
         net = CompletionFormerISDPromptFinetuneV2(args)
+        total = sum([param.nelement() for param in net.parameters()])
+        print('Net parameter: % .4fM' % (total / 1e6))
+    elif args.model == 'ISDPromptFinetuneV2Freeze':
+        net = CompletionFormerISDPromptFinetuneV2Freeze(args)
+    elif args.model == 'ISDPromptFinetuneMP':
+        net = CompletionFormerISDPromptFinetuneMP(args)
+        total = sum([param.nelement() for param in net.parameters()])
+        print('Net parameter: % .4fM' % (total / 1e6))
     else:
         raise TypeError(args.model, ['CompletionFormer', 'PDNE', 'VPT-V1', 'PromptFintune', 'VPT-V2'])
 
@@ -144,6 +158,8 @@ def train(gpu, args):
 
     # Loss
     loss = L1L2Loss(args)
+    if args.use_norm:
+        normal_loss = nn.L1Loss()
     loss.cuda(gpu)
 
     # Optimizer
@@ -235,6 +251,19 @@ def train(gpu, args):
             sample['gt'] = sample['gt'] 
 
             loss_sum, loss_val = loss(sample, output)
+
+            if args.use_norm:
+                normal_from_dep = depth2norm((output['pred']*1000).squeeze(1), camera_matrix)
+                # print(normal_from_dep.shape)
+                
+                norm = normal_from_dep[0].permute(1,2,0).detach().cpu().numpy()
+                vis = ((norm+1) * 255/2).astype(np.uint8)
+                vis = cv2.cvtColor(vis, cv2.COLOR_RGB2BGR)
+                # print(vis.shape)
+                cv2.imwrite('test_norm.png', vis)
+
+                loss_norm_sum = normal_loss(sample['norm'], normal_from_dep)
+                loss_sum += loss_norm_sum
                 
             # Divide by batch size
             loss_sum = loss_sum / loader_train.batch_size
@@ -243,15 +272,6 @@ def train(gpu, args):
             with amp.scale_loss(loss_sum, optimizer) as scaled_loss:
                 scaled_loss.backward()
             
-            # total_grad = 0.
-            # for param in net.parameters():
-            #     # print(param.grad)
-            #     if param.grad is not None:
-            #         total_grad += torch.sum(param.grad).item()
-            # print(f'total: {total_grad :.4f}')
-            # print('------')
-            # if epoch > 5:
-            #     torch.nn.utils.clip_grad_norm_(parameters=net.parameters(), max_norm=10, norm_type=2)
             optimizer.step()
 
             if gpu == 0:
@@ -281,6 +301,12 @@ def train(gpu, args):
                     vis = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
                     return vis
 
+                def norm_to_colormap(norm):
+                    norm = norm[0].permute(1,2,0).detach().cpu().numpy()
+                    vis = ((norm+1) * 255/2).astype(np.uint8)
+                    vis = cv2.cvtColor(vis, cv2.COLOR_RGB2BGR)
+                    return vis
+
                 out = depth_to_colormap(output["pred"][rand_idx], 2.6)
                 gt = depth_to_colormap(sample["gt"][rand_idx], 2.6)
                 sparse = depth_to_colormap(sample["dep"][rand_idx], 2.6)
@@ -289,9 +315,19 @@ def train(gpu, args):
                 cv2.imwrite(os.path.join(folder_name, "sparse.png"), sparse)
                 cv2.imwrite(os.path.join(folder_name, "gt.png"), gt)
 
+                if args.use_norm:
+                    gt_norm_vis = norm_to_colormap(sample['norm'])
+                    cv2.imwrite(os.path.join(folder_name, "gt_norm.png"), gt_norm_vis)
+                    
+                    pred_norm_vis = norm_to_colormap(normal_from_dep)
+                    cv2.imwrite(os.path.join(folder_name, "pred_norm.png"), pred_norm_vis)
+
+
             for i in range(len(loss.loss_name)):
                 writer_train.add_scalar(
                     loss.loss_name[i], total_losses[i] / len(loader_train), epoch)
+            if args.use_norm:
+                writer_train.add_scalar('norm loss', loss_norm_sum, epoch)
 
             writer_train.add_scalar('lr', scheduler.get_last_lr()[0], epoch)
 
@@ -461,6 +497,14 @@ def test(args):
         pass
     elif args.model == 'ISDPromptFinetune':
         net = CompletionFormerISDPromptFinetune(args)
+    elif args.model == 'ISDPromptFinetuneV2':
+        net = CompletionFormerISDPromptFinetuneV2(args)
+    elif args.model == 'ISDPromptFinetuneV2Freeze':
+        net = CompletionFormerISDPromptFinetuneV2Freeze(args)
+    elif args.model == 'ISDPromptFinetuneMP':
+        net = CompletionFormerISDPromptFinetuneMP(args)
+        total = sum([param.nelement() for param in net.parameters()])
+        print('Net parameter: % .4fM' % (total / 1e6))
     else:
         raise TypeError(args.model, ['CompletionFormer', 'PDNE', 'VPT-V1', 'CompletionFormerFreezed', 'VPT-V2', 'PromptFinetune'])
     if args.use_single:

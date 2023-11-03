@@ -55,7 +55,7 @@ parser.add_argument('--use_pol',
                     action='store_true',
                     default=False,
                     help='whether or not to use polarization representations, available for HAMMER')
-parser.add_argument('--pol_rep', type=str, default="grayscale-4", choices=['grayscale-4', 'rgb-12', 'leichenyang-7'], help="the polarization representation to be used")
+parser.add_argument('--pol_rep', type=str, default="grayscale-4", choices=['grayscale-4', 'rgb-12', 'leichenyang-7', 'rgb'], help="the polarization representation to be used")
 parser.add_argument('--data_txt',
                     type=str,
                     default='',

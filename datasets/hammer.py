@@ -39,6 +39,7 @@ class HammerDataset(BaseDataset):
         # -- the camera intrinsic parameters --
         self.K = torch.Tensor([7.067553100585937500e+02, 7.075133056640625000e+02, 5.456326819328060083e+02, 3.899299663507044897e+02])
 
+
         # -- the data files --
         with open(args.data_txt.replace("MODE", mode), "r") as file:
             files_names = file.read().split("\n")[:-1]
@@ -66,7 +67,7 @@ class HammerDataset(BaseDataset):
                 self.vd = np.load('/root/autodl-tmp/yiming/datasets/polar_hammer/vd.npy')
             self.pol_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", pol_folder) for s in files_names] # note that the polarizatins are stored as npy files
         if self.args.use_norm:
-            self.norm_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "norm").replace(".png", ".npy") for s in files_names] # note that the normals are stored as npy files
+            self.norm_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "norm") for s in files_names] # note that the normals are stored as npy files
 
     def __len__(self):
         return len(self.rgb_files) * 3
@@ -126,7 +127,7 @@ class HammerDataset(BaseDataset):
 
         # -- prepare normals --
         if self.args.use_norm:
-            norm = np.load(self.norm_files[idx]) # (H, W, 3)
+            norm = ((cv2.cvtColor(cv2.imread(self.norm_files[idx]), cv2.COLOR_BGR2RGB)/255*2)-1).astype(np.float32) # (H, W, 3)
             norm = norm[::4,::4,...]
             norm = np2tensor(norm) # (3, H, W)
 
@@ -157,6 +158,8 @@ class HammerDataset(BaseDataset):
                 phi_encode = np.concatenate([np.cos(2 * phi), np.sin(2 * phi)], axis=2)
                 pol = np.concatenate([iun, rho, phi_encode, vd], axis=2)
                 pol = np2tensor(pol) # (7, H, W)
+            elif self.args.pol_rep == 'rgb':
+                pol = rgb
 
     
         # -- apply data augmentation --

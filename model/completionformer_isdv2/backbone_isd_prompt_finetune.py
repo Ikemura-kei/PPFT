@@ -87,6 +87,9 @@ class BackboneISDPromptFinetune(nn.Module):
                                           bn=False)
                 # self.conv1_pol_for_dep = conv_bn_relu(7, 16, kernel=3, stride=1, padding=1,
                 #                           bn=False)
+                total = sum([param.nelement() for param in self.conv1_pol_for_rgb.parameters()])
+                print('conv1 parameter: % .4fM' % (total / 1e6))
+
         elif mode == 'rgb':
             self.conv1 = foundation.conv1
         elif mode == 'd':
@@ -128,7 +131,7 @@ class BackboneISDPromptFinetune(nn.Module):
             self.cf_dec0 = foundation.cf_dec0 
         
         # self.mcp = MCPBlockV2(48, 48, 256)
-        self.mp = ModalityPromper(48)
+        # self.mp = ModalityPromper(48)
         
 
     def _concat(self, fd, fe, dim=1):
@@ -158,7 +161,9 @@ class BackboneISDPromptFinetune(nn.Module):
             elif self.args.pol_rep == 'leichenyang-7':
                 fe1_pol_for_rgb = self.conv1_pol_for_rgb(pol) # + self.prompt.expand(B, -1, -1, -1)
                 
-            fe1_rgb, prompt = self.mp(fe1_rgb, fe1_pol_for_rgb)
+            # fe1_rgb, prompt = self.mp(fe1_rgb, fe1_pol_for_rgb)
+            fe1_rgb = fe1_rgb+fe1_pol_for_rgb
+            prompt = fe1_pol_for_rgb
 
             # fe1_rgb = fe1_rgb + prompt
 
