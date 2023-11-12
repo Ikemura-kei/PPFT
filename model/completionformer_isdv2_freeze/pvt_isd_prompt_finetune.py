@@ -222,7 +222,6 @@ class PyramidVisionTransformer(nn.Module):
             setattr(self, f"pos_embed{i + 1}", getattr(foundation, f"pos_embed{i+1}"))
             setattr(self, f"pos_drop{i + 1}", getattr(foundation, f"pos_drop{i+1}"))
             setattr(self, f"block{i + 1}", getattr(foundation, f"block{i+1}"))
-        exit()
 
 
     def init_weights(self, pretrained=None):

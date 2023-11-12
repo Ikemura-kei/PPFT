@@ -6,7 +6,7 @@ python main.py --dir_data /root/autodl-tmp/yiming/datasets/polar_hammer \
                 --gpus 6 \
                 --loss 1.0*L1+1.0*L2 \
                 --log_dir ./experiments/ \
-                --save model-25 \
+                --save model-25-r-best \
                 --model ISDPromptFinetuneMP \
                 --completionformer_mode rgbd \
                 --pre_pvt \

@@ -18,7 +18,7 @@ python main.py --dir_data /root/autodl-tmp/yiming/datasets/polar_hammer \
                 --pre_res \
                 --save_full \
                 --warm_up \
-                --port 29502 \
+                --port 29503 \
                 --lr 0.00105 \
                 --pretrained_completionformer /root/autodl-tmp/yiming/PDNE/pretrained/comp/NYUv2.pt \
                 --use_pol \

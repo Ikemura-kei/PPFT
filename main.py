@@ -39,6 +39,11 @@ from model.completionformer_isd_prompt_finetune.completionformer_isd_prompt_fine
 from model.completionformer_isdv2.completionformer_isdv2 import CompletionFormerISDPromptFinetuneV2
 from model.completionformer_isdv2_freeze.completionformer_isdv2 import CompletionFormerISDPromptFinetuneV2Freeze
 from model.completionformer_mp.completionformer_isdv2 import CompletionFormerISDPromptFinetuneMP
+from model.completionformer_mp_shallow.completionformer_isdv2 import CompletionFormerISDPromptFinetuneMPShallow
+from model.completionformer_mp_freeze.completionformer_isdv2 import CompletionFormerISDPromptFinetuneMPFreeze
+from model.completionformer_mp_scr.completionformer_isdv2 import CompletionFormerISDPromptFinetuneMPScr
+
+
 from utils.depth2normal import depth2norm
 
 from summary.cfsummary import CompletionFormerSummary
@@ -141,6 +146,14 @@ def train(gpu, args):
         net = CompletionFormerISDPromptFinetuneMP(args)
         total = sum([param.nelement() for param in net.parameters()])
         print('Net parameter: % .4fM' % (total / 1e6))
+    elif args.model == 'ISDPromptFinetuneMPShallow':
+        net = CompletionFormerISDPromptFinetuneMPShallow(args)
+        total = sum([param.nelement() for param in net.parameters()])
+        print('Net parameter: % .4fM' % (total / 1e6))
+    elif args.model == 'ISDPromptFinetuneMPFreeze':
+        net = CompletionFormerISDPromptFinetuneMPFreeze(args)
+    elif args.model == 'ISDPromptFinetuneMPScr':
+        net = CompletionFormerISDPromptFinetuneMPScr(args)
     else:
         raise TypeError(args.model, ['CompletionFormer', 'PDNE', 'VPT-V1', 'PromptFintune', 'VPT-V2'])
 
@@ -467,6 +480,7 @@ def test_one_model(args, net, loader_test, save_samples, epoch_idx=0, summary_wr
             cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_gt.png'.format(batch)), gt_vis)
             cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_err.png'.format(batch)), error_map_vis)
             cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_pred.png'.format(batch)), pred_vis)
+            cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_pred_raw.png'.format(batch)), (pred.detach().cpu().numpy()[0][0]*1000).astype(np.uint16))
             cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_dep.png'.format(batch)), dep_vis)
     
     pbar.close()
@@ -505,12 +519,21 @@ def test(args):
         net = CompletionFormerISDPromptFinetuneMP(args)
         total = sum([param.nelement() for param in net.parameters()])
         print('Net parameter: % .4fM' % (total / 1e6))
+    elif args.model == 'ISDPromptFinetuneMPShallow':
+        net = CompletionFormerISDPromptFinetuneMPShallow(args)
+        total = sum([param.nelement() for param in net.parameters()])
+        print('Net parameter: % .4fM' % (total / 1e6))
+    elif args.model == 'ISDPromptFinetuneMPFreeze':
+        net = CompletionFormerISDPromptFinetuneMPFreeze(args)
+    elif args.model == 'ISDPromptFinetuneMPScr':
+        net = CompletionFormerISDPromptFinetuneMPScr(args)
+        
     else:
         raise TypeError(args.model, ['CompletionFormer', 'PDNE', 'VPT-V1', 'CompletionFormerFreezed', 'VPT-V2', 'PromptFinetune'])
     if args.use_single:
-        data_test = HammerSingleDepthDataset(args, 'test')
+        data_test = HammerSingleDepthDataset(args, 'test' if not args.use_val_set else 'val')
     else:
-        data_test = HammerDataset(args, 'test')
+        data_test = HammerDataset(args, 'test' if not args.use_val_set else 'val')
 
     result_dict = {}
 
@@ -534,7 +557,7 @@ def test(args):
         summary_writer = SummaryWriter(log_dir=os.path.join(args.save_dir, 'test', 'logs'))
 
         pretrain_list = open(args.pretrain_list_file, 'r').read().split("\n")
-        num_samples_to_save = 3 if len(pretrain_list) >= 5 else 50
+        num_samples_to_save = 3 if len(pretrain_list) >= 5 else len(pretrain_list)
         if len(pretrain_list) == 1:
             save_samples = np.arange(len(loader_test))
         else:

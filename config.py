@@ -203,6 +203,10 @@ parser.add_argument('--resume',
 parser.add_argument('--test_only',
                     action='store_true',
                     help='test only flag')
+parser.add_argument('--use_val_set',
+                    action='store_true',
+                    default=False,
+                    help='decides whether to use the validation set for testing (by default is the test set)')
 parser.add_argument('--batch_size',
                     type=int,
                     default=12,

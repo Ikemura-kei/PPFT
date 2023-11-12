@@ -4,3 +4,4 @@ experiments/*/
 *pycache*/
 __pycache__/
 */__pycache__/
+*.zip
