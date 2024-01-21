@@ -25,7 +25,7 @@ from utils.mics import save_output
 from utils.metrics import PDNEMetric
 from utils.depth2normal import depth2norm
 # -- model imports --
-from model.completionformer_mp.completionformer_isdv2 import CompletionFormerISDPromptFinetuneMP
+from model.ppft.completionformer_isdv2 import CompletionFormerISDPromptFinetuneMP
 from model.completionformer_mp_shallow.completionformer_isdv2 import CompletionFormerISDPromptFinetuneMPShallow
 from model.completionformer_mp_freeze.completionformer_isdv2 import CompletionFormerISDPromptFinetuneMPFreeze
 from model.completionformer_mp_scr.completionformer_isdv2 import CompletionFormerISDPromptFinetuneMPScr
@@ -48,6 +48,11 @@ torch.backends.cudnn.benchmark = False
 
 best_rmse = 100
 best_mae = 100
+
+# ---------------
+# -- constants --
+# ---------------
+MODEL_CHOICES = ['PPFT', 'PPFTShallow', 'PPFTScratch']
 
 # ------------------------------
 # -- user provided parameters --
@@ -115,14 +120,13 @@ def train(gpu, args):
     global best_rmse
     global best_mae
 
-    # Initialize workers
-    # NOTE : the worker with gpu=0 will do logging
+    # -- initialize distributed training, rank=0 is used for logging --
     dist.init_process_group(backend='nccl', init_method=f'tcp://localhost:{args.port}',
                             world_size=args.num_gpus, rank=gpu)
     torch.cuda.set_device(gpu)
 
 
-    # Prepare dataset
+    # -- instantiate the dataloaders --
     dataset = HammerDataset(args, "train")
 
     sampler_train = DistributedSampler(
@@ -135,46 +139,19 @@ def train(gpu, args):
         num_workers=args.num_threads, pin_memory=True, sampler=sampler_train,
         drop_last=True)
 
-    # Network
-    if args.model == 'CompletionFormer':
-        net = CompletionFormer(args)
-    elif args.model == 'CompletionFormerFreezed':
-        net = CompletionFormer(args)
-        if args.pretrained_completionformer is not None:
-            net.load_state_dict(torch.load(args.pretrained_completionformer, map_location='cpu')['net'])
-            for p in net.parameters():
-                p.requires_grad = False
-    elif args.model == 'PDNE':
-        net = PDNE(args)
-    elif args.model == 'VPT-V1':
-        net = CompletionFormerVPTV1(args)
-    elif args.model == 'VPT-V2':
-        net = CompletionFormerVPTV2_1(args)
-    elif args.model == 'ISDPromptFinetune':
-        net = CompletionFormerISDPromptFinetune(args)
-    elif args.model == 'ISDPromptFinetuneV2':
-        net = CompletionFormerISDPromptFinetuneV2(args)
-        total = sum([param.nelement() for param in net.parameters()])
-        print('Net parameter: % .4fM' % (total / 1e6))
-    elif args.model == 'ISDPromptFinetuneV2Freeze':
-        net = CompletionFormerISDPromptFinetuneV2Freeze(args)
-    elif args.model == 'ISDPromptFinetuneMP':
-        net = CompletionFormerISDPromptFinetuneMP(args)
-        total = sum([param.nelement() for param in net.parameters()])
-        print('Net parameter: % .4fM' % (total / 1e6))
-    elif args.model == 'ISDPromptFinetuneMPShallow':
-        net = CompletionFormerISDPromptFinetuneMPShallow(args)
-        total = sum([param.nelement() for param in net.parameters()])
-        print('Net parameter: % .4fM' % (total / 1e6))
-    elif args.model == 'ISDPromptFinetuneMPFreeze':
-        net = CompletionFormerISDPromptFinetuneMPFreeze(args)
-    elif args.model == 'ISDPromptFinetuneMPScr':
-        net = CompletionFormerISDPromptFinetuneMPScr(args)
+    # -- instantiate the model --
+    # TODO: Make this smarter
+    if args.model == 'PPFT':
+        net = PPFT(args)
+    elif args.model == 'PPFTShallow':
+        net = PPFTShallow(args)
+    elif args.model == 'PPFTScratch':
+        net = PPFTScratch(args)
     else:
-        raise TypeError(args.model, ['CompletionFormer', 'PDNE', 'VPT-V1', 'PromptFintune', 'VPT-V2'])
-
+        raise TypeError(args.model, MODEL_CHOICES)
     net.cuda(gpu)
-
+    
+    # -- load pretrained weights in case of fine-tuning an existing PPFT, e.g. resuming --
     if gpu == 0:
         if args.pretrain is not None:
             assert os.path.exists(args.pretrain), \
@@ -185,19 +162,17 @@ def train(gpu, args):
 
             print('Load network parameters from : {}'.format(args.pretrain))
 
-    # Loss
+    # -- instantiate the losses --
     loss = L1L2Loss(args)
-    if args.use_norm:
-        normal_loss = nn.L1Loss()
     loss.cuda(gpu)
 
-    # Optimizer
+    # -- instantiate the optimizer --
     optimizer, scheduler = train_utils.make_optimizer_scheduler(args, net, len(loader_train))
     net = apex.parallel.convert_syncbn_model(net)
     net, optimizer = amp.initialize(net, optimizer, opt_level=args.opt_level, verbosity=0)
     
     init_epoch = 1
-
+    # -- initialize various parameters in case of resuming --
     if gpu == 0:
         if args.pretrain is not None:
             if args.resume:
@@ -218,8 +193,10 @@ def train(gpu, args):
 
     net = DDP(net)
 
+    # -- instantiate the metrics --
     metric = PDNEMetric(args)
 
+    # -- create directories for saving results --
     if gpu == 0:
         os.makedirs(args.save_dir, exist_ok=True)
         os.makedirs(args.save_dir + '/train', exist_ok=True)
@@ -231,13 +208,13 @@ def train(gpu, args):
         with open(args.save_dir + '/args.json', 'w') as args_json:
             json.dump(args.__dict__, args_json, indent=4)
 
+    # -- check for training warm-ups --
     if args.warm_up:
         warm_up_cnt = 0.0
         warm_up_max_cnt = len(loader_train)+1.0
 
+    # -- training loop starts here --
     for epoch in range(init_epoch, args.epochs+1):
-        # Train
-        print("--> Epoch {}/{}".format(epoch, args.epochs))
         net.train()
 
         sampler_train.set_epoch(epoch)
@@ -256,14 +233,17 @@ def train(gpu, args):
             log_cnt = 0.0
             log_loss = 0.0
 
+        # TODO: Check if this exists in the original author's code and if this is appropriate at all
         init_seed(seed=int(time.time()))
 
+        # -- go over batches --
         for batch, sample in enumerate(loader_train):
             sample = {key: val.cuda(gpu) for key, val in sample.items()
                     if (val is not None) and key != 'base_name'}
 
             sample["input"] = sample["rgb"]
 
+            # -- update learning rates according to the warm-up scheme --
             if epoch == 1 and args.warm_up:
                 warm_up_cnt += 1
 
@@ -274,35 +254,24 @@ def train(gpu, args):
 
             optimizer.zero_grad()
 
+            # -- forward pass --
             output = net(sample)
             
             output['pred'] = output['pred']  * sample['net_mask']
             sample['gt'] = sample['gt'] 
 
             loss_sum, loss_val = loss(sample, output)
-
-            if args.use_norm:
-                normal_from_dep = depth2norm((output['pred']*1000).squeeze(1), camera_matrix)
-                # print(normal_from_dep.shape)
-                
-                norm = normal_from_dep[0].permute(1,2,0).detach().cpu().numpy()
-                vis = ((norm+1) * 255/2).astype(np.uint8)
-                vis = cv2.cvtColor(vis, cv2.COLOR_RGB2BGR)
-                # print(vis.shape)
-                cv2.imwrite('test_norm.png', vis)
-
-                loss_norm_sum = normal_loss(sample['norm'], normal_from_dep)
-                loss_sum += loss_norm_sum
                 
             # Divide by batch size
             loss_sum = loss_sum / loader_train.batch_size
             loss_val = loss_val / loader_train.batch_size
 
+            # -- backward pass and parameter update --
             with amp.scale_loss(loss_sum, optimizer) as scaled_loss:
                 scaled_loss.backward()
-            
             optimizer.step()
 
+            # -- per iteration logging --
             if gpu == 0:
                 for i in range(len(loss.loss_name)):
                     total_losses[i] += loss_val[0][i]
@@ -315,9 +284,11 @@ def train(gpu, args):
                     pbar.set_description(e_string)
                     pbar.update(loader_train.batch_size * args.num_gpus)
 
+        # -- per-epoch logging --
         if gpu == 0:
             pbar.close()
 
+            # TODO: Make this cleaner by moving the visualization utilities to other scripts
             if epoch % 2 == 0:
                 # -- save visualization --
                 folder_name = os.path.join(args.save_dir, "epoch-{}".format(str(epoch)))
@@ -351,15 +322,13 @@ def train(gpu, args):
                     pred_norm_vis = norm_to_colormap(normal_from_dep)
                     cv2.imwrite(os.path.join(folder_name, "pred_norm.png"), pred_norm_vis)
 
-
             for i in range(len(loss.loss_name)):
                 writer_train.add_scalar(
                     loss.loss_name[i], total_losses[i] / len(loader_train), epoch)
-            if args.use_norm:
-                writer_train.add_scalar('norm loss', loss_norm_sum, epoch)
 
             writer_train.add_scalar('lr', scheduler.get_last_lr()[0], epoch)
 
+            # -- save the model checkpoint at the right timing --
             if ((epoch) % args.save_freq == 0) or epoch==5 or epoch==args.epochs:
                 if args.save_full or epoch == args.epochs:
                     state = {
@@ -380,6 +349,7 @@ def train(gpu, args):
                 torch.save(
                     state, '{}/model_{:05d}.pt'.format(args.save_dir, epoch))
                 
+        # -- update learning rate --
         scheduler.step()
 
         if gpu == 0:
@@ -494,39 +464,20 @@ def test_one_model(args, net, loader_test, save_samples, epoch_idx=0, summary_wr
     return metric_avg
 
 def test(args):
-    # -- prepare network --
-    is_old = False
-    if args.model == 'VPT-V1':
-        pass
-    elif args.model == 'VPT-V2':
-        net = CompletionFormerVPTV2(args)
-    elif args.model == 'CompletionFormer':
-        pass
-    elif args.model == 'PDNE':
-        pass
-    elif args.model == 'CompletionFormerFreezed':
-        pass
-    elif args.model == 'ISDPromptFinetune':
-        net = CompletionFormerISDPromptFinetune(args)
-    elif args.model == 'ISDPromptFinetuneV2':
-        net = CompletionFormerISDPromptFinetuneV2(args)
-    elif args.model == 'ISDPromptFinetuneV2Freeze':
-        net = CompletionFormerISDPromptFinetuneV2Freeze(args)
-    elif args.model == 'ISDPromptFinetuneMP':
-        net = CompletionFormerISDPromptFinetuneMP(args)
-        total = sum([param.nelement() for param in net.parameters()])
-        print('Net parameter: % .4fM' % (total / 1e6))
-    elif args.model == 'ISDPromptFinetuneMPShallow':
-        net = CompletionFormerISDPromptFinetuneMPShallow(args)
-        total = sum([param.nelement() for param in net.parameters()])
-        print('Net parameter: % .4fM' % (total / 1e6))
-    elif args.model == 'ISDPromptFinetuneMPFreeze':
-        net = CompletionFormerISDPromptFinetuneMPFreeze(args)
-    elif args.model == 'ISDPromptFinetuneMPScr':
-        net = CompletionFormerISDPromptFinetuneMPScr(args)
-        
+    # -- instantiate the model --
+    # TODO: Share this part of code with that in the training code, avoid copy-pasting
+    if args.model == 'PPFT':
+        net = PPFT(args)
+    elif args.model == 'PPFTShallow':
+        net = PPFTShallow(args)
+    elif args.model == 'PPFTScratch':
+        net = PPFTScratch(args)
     else:
-        raise TypeError(args.model, ['CompletionFormer', 'PDNE', 'VPT-V1', 'CompletionFormerFreezed', 'VPT-V2', 'PromptFinetune'])
+        raise TypeError(args.model, MODEL_CHOICES)
+    net.cuda()
+        
+    # -- prepare the dataset --
+    # TODO: Make this smarter by combining into a single dataset class --
     if args.use_single:
         data_test = HammerSingleDepthDataset(args, 'test' if not args.use_val_set else 'val')
     else:
@@ -537,8 +488,7 @@ def test(args):
     loader_test = DataLoader(dataset=data_test, batch_size=1,
                              shuffle=False, num_workers=args.num_threads)
 
-    net.cuda()
-
+    # -- load checkpoint(s) --
     if args.pretrain is not None:
         summary_writer = SummaryWriter(log_dir=os.path.join(args.save_dir, 'test', 'logs'))
 
@@ -549,7 +499,6 @@ def test(args):
 
         test_one_model(args, net, loader_test, save_samples, is_old=is_old, result_dict=result_dict, summary_writer=summary_writer)
         summary_writer.close()
-
     elif args.pretrain_list_file is not None:
         summary_writer = SummaryWriter(log_dir=os.path.join(args.save_dir, 'test', 'logs'))
 
@@ -569,8 +518,10 @@ def test(args):
             test_one_model(args, net, loader_test, save_samples, epoch_idx, summary_writer, is_old=is_old, result_dict=result_dict, idx=line_idx)
             line_idx += 1
         summary_writer.close()
+    else:
+        raise Exception("No checkpoint or checkpoint list provided, please provide one for testing")
 
-        
+    # -- log results --
     with open(args.save_dir + '/result.json', 'w') as args_json:
         json.dump(result_dict, args_json, indent=4)
 

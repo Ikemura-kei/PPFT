@@ -1,5 +1,7 @@
+# -- pytorch stuff --
 import torch
 import torch.nn as nn
+# -- model imports --
 from .completionformer import CompletionFormer
 from .ppft_backbone import PPFTBackbone
 

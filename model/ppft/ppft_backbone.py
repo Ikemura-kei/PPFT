@@ -1,7 +1,9 @@
+# -- pytorch stuff --
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .pvt_isd_prompt_finetune import PPFTPVT
+# -- model imports --
+from .ppft_pvt import PPFTPVT
 
 def conv_bn_relu(ch_in, ch_out, kernel, stride=1, padding=0, bn=True,
                  relu=True):
