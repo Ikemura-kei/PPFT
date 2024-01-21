@@ -1,17 +1,17 @@
+# -- pytorch stuff --
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from functools import partial
 import torchvision
-from model.id_module import AFP, ISD
-
+# -- misc. utilities --
+from functools import partial
+# -- model impoorts --
+from .resnet_cbam import BasicBlock
+from .modality_promper import ModalityPromper
+# -- mmcv stuff --
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from mmseg.utils import get_root_logger
 from mmcv.runner import load_checkpoint
-from einops import rearrange
-from .resnet_cbam import BasicBlock
-from .modality_promper import MCPBlockV2, ModalityPromper
-
 
 model_path = {
     'resnet18': 'model/completionformer_original/pretrained/resnet18.pth',
@@ -35,7 +35,6 @@ def get_resnet34(pretrained=True):
         net.load_state_dict(state_dict)
 
     return net
-
 
 
 class Mlp(nn.Module):
@@ -326,9 +325,9 @@ def _conv_filter(state_dict, patch_size=16):
     return out_dict
 
 
-class PVTISDPromptFinetune(PyramidVisionTransformer):
+class PPFTPVT(PyramidVisionTransformer):
     def __init__(self, in_chans, patch_size=4, foundation=None, **kwargs):
-        super(PVTISDPromptFinetune, self).__init__(
+        super(PPFTPVT, self).__init__(
             patch_size=patch_size, in_chans=in_chans, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[8, 8, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 6, 3],
             sr_ratios=[8, 4, 2, 1], drop_rate=0.0, drop_path_rate=0.1, pretrained=kwargs['pretrained'], use_prompt=True, foundation=foundation)

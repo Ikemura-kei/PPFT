@@ -1,3 +1,4 @@
+# -- pytorch stuff --
 import torch
 import torch.nn as nn
 
@@ -46,51 +47,6 @@ class Fovea(nn.Module):
         output = output.contiguous().view(b, c, h, w)
 
         return output
-
-class MCPBlock(nn.Module):
-    def __init__(self, in_dim1, in_dim2, hidden_dim):
-        super(MCPBlock, self).__init__()
-
-        self.fovea = Fovea()
-        self.conv0_0 = nn.Conv2d(in_channels=in_dim1, out_channels=hidden_dim, kernel_size=1, stride=1, padding=0)
-        self.conv0_1 = nn.Conv2d(in_channels=in_dim2, out_channels=hidden_dim, kernel_size=1, stride=1, padding=0)
-        self.conv1x1 = nn.Conv2d(in_channels=hidden_dim, out_channels=in_dim1, kernel_size=1, stride=1, padding=0)
-
-    def forward(self, x, complementary):
-        # x0 is the Hl, x1 is the Pl
-        x0 = x.contiguous()
-        x0 = self.conv0_0(x0)
-
-        x1 = complementary.contiguous()
-        x1 = self.conv0_1(x1)
-
-        x2 = self.fovea(x0) + x1
-
-        return self.conv1x1(x2) 
-
-class MCPBlockV2(nn.Module):
-    def __init__(self, in_dim1, in_dim2, hidden_dim):
-        super(MCPBlockV2, self).__init__()
-
-        self.fovea = Fovea()
-        self.conv0_0 = nn.Conv2d(in_channels=in_dim1+in_dim2, out_channels=in_dim1*2, kernel_size=1, stride=1, padding=0)
-        self.conv0_1 = nn.Conv2d(in_channels=in_dim2, out_channels=in_dim1*2, kernel_size=1, stride=1, padding=0)
-        self.conv1x1 = nn.Conv2d(in_channels=in_dim1*2, out_channels=in_dim1, kernel_size=1, stride=1, padding=0)
-
-    def forward(self, x, complementary):
-        # x0 is the Hl, x1 is the Pl
-        x0 = x.contiguous()
-        
-        x1 = complementary.contiguous()
-
-        # print(x0.shape, x1.shape)
-        x0 = self.conv0_0(torch.cat([x0, x1], dim=1))
-        x1 = self.conv0_1(x1)
-
-
-        x2 = x0 + self.fovea(x1)
-
-        return self.conv1x1(x2) 
 
 
 class ModalityPromper(nn.Module):

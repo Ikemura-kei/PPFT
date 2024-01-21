@@ -1,11 +1,11 @@
-from .completionformer import CompletionFormer
 import torch
 import torch.nn as nn
-from .backbone_isd_prompt_finetune import BackboneISDPromptFinetune
+from .completionformer import CompletionFormer
+from .ppft_backbone import PPFTBackbone
 
-class CompletionFormerISDPromptFinetuneMP(nn.Module):
+class PPFT(nn.Module):
     def __init__(self, args):
-        super(CompletionFormerISDPromptFinetuneMP, self).__init__()
+        super(PPFT, self).__init__()
 
         self.args = args
 
@@ -14,7 +14,7 @@ class CompletionFormerISDPromptFinetuneMP(nn.Module):
 
         self.prop_time = self.args.prop_time
         self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1
-        self.backbone = BackboneISDPromptFinetune(args, self.foundation.backbone, mode='rgbd')
+        self.backbone = PPFTBackbone(args, self.foundation.backbone, mode='rgbd')
 
         if self.prop_time > 0:
             self.prop_layer = self.foundation.prop_layer

@@ -1,13 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .resnet_cbam import BasicBlock
-from .pvt_isd_prompt_finetune import PVTISDPromptFinetune
-from einops import rearrange
-from .backbone import Backbone
-from model.id_module import AFP, ISD
-from .modality_promper import MCPBlockV2, ModalityPromper
-
+from .pvt_isd_prompt_finetune import PPFTPVT
 
 def conv_bn_relu(ch_in, ch_out, kernel, stride=1, padding=0, bn=True,
                  relu=True):
@@ -44,9 +38,9 @@ def convt_bn_relu(ch_in, ch_out, kernel, stride=1, padding=0, output_padding=0,
 
     return layers
 
-class BackboneISDPromptFinetune(nn.Module):
+class PPFTBackbone(nn.Module):
     def __init__(self, args, foundation, mode='rgbd'):
-        super(BackboneISDPromptFinetune, self).__init__()
+        super(PPFTBackbone, self).__init__()
         self.args = args
         self.mode = mode
         self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1
@@ -102,7 +96,7 @@ class BackboneISDPromptFinetune(nn.Module):
             raise TypeError(mode)
         
         # self.former = foundation.former
-        self.former = PVTISDPromptFinetune(in_chans=64, patch_size=2, pretrained='./model/completionformer_original/pretrained/pvt.pth', foundation=foundation.former)
+        self.former = PPFTPVT(in_chans=64, patch_size=2, pretrained='./model/completionformer_original/pretrained/pvt.pth', foundation=foundation.former)
 
         # Shared Decoder
         # 1/16
