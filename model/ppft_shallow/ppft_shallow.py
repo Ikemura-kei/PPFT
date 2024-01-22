@@ -3,11 +3,11 @@ import torch
 import torch.nn as nn
 # -- model imports --
 from model.completionformer.completionformer import CompletionFormer
-from .ppft_backbone import PPFTBackbone
+from model.ppft.ppft_backbone import PPFTBackbone
 
-class PPFT(nn.Module):
+class PPFTShallow(nn.Module):
     def __init__(self, args):
-        super(PPFT, self).__init__()
+        super(PPFTShallow, self).__init__()
 
         self.args = args
 

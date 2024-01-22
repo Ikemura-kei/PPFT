@@ -7,7 +7,7 @@ import torchvision
 from functools import partial
 # -- model imports --
 from model.completionformer.resnet_cbam import BasicBlock
-from .modality_promper import ModalityPromper
+from model.ppft.modality_promper import ModalityPromper
 # -- mmcv stuff --
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from mmseg.utils import get_root_logger
@@ -35,6 +35,7 @@ def get_resnet34(pretrained=True):
         net.load_state_dict(state_dict)
 
     return net
+
 
 
 class Mlp(nn.Module):
@@ -207,17 +208,6 @@ class PyramidVisionTransformer(nn.Module):
             print('P0 parameter: % .4fM' % (total / 1e6))
 
         for i in range(num_stages):
-            if use_prompt:
-                prompt_modifier = nn.Sequential(nn.Conv2d(chs[i], chs[i+1], kernel_size=3, stride=2, padding=(1 if i != (num_stages-1) else 0)), \
-                                                nn.ReLU(inplace=True), nn.BatchNorm2d(chs[i+1]))
-                mp = ModalityPromper(chs[i+1])
-                
-                total = sum([param.nelement() for param in mp.parameters()]) + sum([param.nelement() for param in prompt_modifier.parameters()])
-                print('P parameter: % .4fM' % (total / 1e6))
-
-                setattr(self, f"prompt_modifier{i + 1}", prompt_modifier)
-                setattr(self, f"mp{i + 1}", mp)
-
             cur += depths[i]
 
             setattr(self, f"patch_embed{i + 1}", getattr(foundation, f"patch_embed{i+1}"))
@@ -273,11 +263,8 @@ class PyramidVisionTransformer(nn.Module):
             print('---------')
             exit()
 
-        # print("--> Shape after embed {}".format(x.shape))
         if self.use_prompt:
-
             x, prev_prompt = self.mp0(x, self.prompt_modifier0(prompt))
-            # x = x + prev_prompt
 
         outs.append(x)
 
@@ -300,10 +287,6 @@ class PyramidVisionTransformer(nn.Module):
 
             x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
 
-            if self.use_prompt:
-                x, prev_prompt = getattr(self, f"mp{i + 1}")(x, getattr(self, 'prompt_modifier{}'.format(i+1))(prev_prompt))
-                # x = x + prev_prompt
-
             outs.append(x)
 
         return outs
@@ -325,9 +308,9 @@ def _conv_filter(state_dict, patch_size=16):
     return out_dict
 
 
-class PPFTPVT(PyramidVisionTransformer):
+class PPFTPVTShallow(PyramidVisionTransformer):
     def __init__(self, in_chans, patch_size=4, foundation=None, **kwargs):
-        super(PPFTPVT, self).__init__(
+        super(PPFTPVTShallow, self).__init__(
             patch_size=patch_size, in_chans=in_chans, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[8, 8, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 6, 3],
             sr_ratios=[8, 4, 2, 1], drop_rate=0.0, drop_path_rate=0.1, pretrained=kwargs['pretrained'], use_prompt=True, foundation=foundation)

@@ -3,16 +3,15 @@ import torch
 import torch.nn as nn
 # -- model imports --
 from model.completionformer.completionformer import CompletionFormer
-from .ppft_backbone import PPFTBackbone
+from model.ppft.ppft_backbone import PPFTBackbone
 
-class PPFT(nn.Module):
+class PPFTScratch(nn.Module):
     def __init__(self, args):
-        super(PPFT, self).__init__()
+        super(PPFTScratch, self).__init__()
 
         self.args = args
 
         self.foundation = CompletionFormer(args)
-        self.foundation.load_state_dict(torch.load(args.pretrained_completionformer, map_location='cpu')['net'])
 
         self.prop_time = self.args.prop_time
         self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1

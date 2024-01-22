@@ -7,7 +7,7 @@ import torchvision
 from functools import partial
 # -- model imports --
 from model.completionformer.resnet_cbam import BasicBlock
-from .modality_promper import ModalityPromper
+from model.ppft.modality_promper import ModalityPromper
 # -- mmcv stuff --
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from mmseg.utils import get_root_logger
@@ -35,6 +35,7 @@ def get_resnet34(pretrained=True):
         net.load_state_dict(state_dict)
 
     return net
+
 
 
 class Mlp(nn.Module):
@@ -286,6 +287,7 @@ class PyramidVisionTransformer(nn.Module):
             pos_embed = getattr(self, f"pos_embed{i + 1}")
             pos_drop = getattr(self, f"pos_drop{i + 1}")
             block = getattr(self, f"block{i + 1}")
+            patch_embed.eval()
 
             # print('before',type(x))
             x, (H, W) = patch_embed(x)
@@ -293,9 +295,11 @@ class PyramidVisionTransformer(nn.Module):
                 pos_embed = self._get_pos_embed(pos_embed[:, 1:], patch_embed, H, W)
             else:
                 pos_embed = self._get_pos_embed(pos_embed, patch_embed, H, W)
-
+            
+            pos_drop.eval()
             x = pos_drop(x + pos_embed)
             for blk in block:
+                blk.eval()
                 x = blk(x, H, W)
 
             x = x.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous()
@@ -325,9 +329,9 @@ def _conv_filter(state_dict, patch_size=16):
     return out_dict
 
 
-class PPFTPVT(PyramidVisionTransformer):
+class PPFTFreezePVT(PyramidVisionTransformer):
     def __init__(self, in_chans, patch_size=4, foundation=None, **kwargs):
-        super(PPFTPVT, self).__init__(
+        super(PPFTFreezePVT, self).__init__(
             patch_size=patch_size, in_chans=in_chans, embed_dims=[64, 128, 320, 512], num_heads=[1, 2, 5, 8], mlp_ratios=[8, 8, 4, 4],
             qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), depths=[3, 4, 6, 3],
             sr_ratios=[8, 4, 2, 1], drop_rate=0.0, drop_path_rate=0.1, pretrained=kwargs['pretrained'], use_prompt=True, foundation=foundation)

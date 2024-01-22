@@ -3,11 +3,11 @@ import torch
 import torch.nn as nn
 # -- model imports --
 from model.completionformer.completionformer import CompletionFormer
-from .ppft_backbone import PPFTBackbone
+from .ppft_freeze_backbone import PPFTFreezeBackbone
 
-class PPFT(nn.Module):
+class PPFTFreeze(nn.Module):
     def __init__(self, args):
-        super(PPFT, self).__init__()
+        super(PPFTFreeze, self).__init__()
 
         self.args = args
 
@@ -16,7 +16,7 @@ class PPFT(nn.Module):
 
         self.prop_time = self.args.prop_time
         self.num_neighbors = self.args.prop_kernel*self.args.prop_kernel - 1
-        self.backbone = PPFTBackbone(args, self.foundation.backbone, mode='rgbd')
+        self.backbone = PPFTFreezeBackbone(args, self.foundation.backbone, mode='rgbd')
 
         if self.prop_time > 0:
             self.prop_layer = self.foundation.prop_layer

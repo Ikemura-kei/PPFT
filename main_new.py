@@ -25,10 +25,7 @@ from utils.mics import save_output
 from utils.metrics import PDNEMetric
 from utils.depth2normal import depth2norm
 # -- model imports --
-from model.ppft.completionformer_isdv2 import CompletionFormerISDPromptFinetuneMP
-from model.completionformer_mp_shallow.completionformer_isdv2 import CompletionFormerISDPromptFinetuneMPShallow
-from model.completionformer_mp_freeze.completionformer_isdv2 import CompletionFormerISDPromptFinetuneMPFreeze
-from model.completionformer_mp_scr.completionformer_isdv2 import CompletionFormerISDPromptFinetuneMPScr
+import model
 # -- training utilities --
 from utils import train_utils
 import apex
@@ -52,7 +49,7 @@ best_mae = 100
 # ---------------
 # -- constants --
 # ---------------
-MODEL_CHOICES = ['PPFT', 'PPFTShallow', 'PPFTScratch']
+MODEL_CHOICES = ['PPFT', 'PPFTShallow', 'PPFTScratch', 'PPFTFreeze']
 
 # ------------------------------
 # -- user provided parameters --
@@ -141,14 +138,10 @@ def train(gpu, args):
 
     # -- instantiate the model --
     # TODO: Make this smarter
-    if args.model == 'PPFT':
-        net = PPFT(args)
-    elif args.model == 'PPFTShallow':
-        net = PPFTShallow(args)
-    elif args.model == 'PPFTScratch':
-        net = PPFTScratch(args)
-    else:
+    if args.model not in MODEL_CHOICES:
         raise TypeError(args.model, MODEL_CHOICES)
+    
+    net = getattr(model, args.model)(args)
     net.cuda(gpu)
     
     # -- load pretrained weights in case of fine-tuning an existing PPFT, e.g. resuming --
@@ -466,14 +459,10 @@ def test_one_model(args, net, loader_test, save_samples, epoch_idx=0, summary_wr
 def test(args):
     # -- instantiate the model --
     # TODO: Share this part of code with that in the training code, avoid copy-pasting
-    if args.model == 'PPFT':
-        net = PPFT(args)
-    elif args.model == 'PPFTShallow':
-        net = PPFTShallow(args)
-    elif args.model == 'PPFTScratch':
-        net = PPFTScratch(args)
-    else:
+    if args.model not in MODEL_CHOICES:
         raise TypeError(args.model, MODEL_CHOICES)
+    
+    net = getattr(model, args.model)(args)
     net.cuda()
         
     # -- prepare the dataset --
