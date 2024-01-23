@@ -1,1 +1,0 @@
-24 - /root/autodl-tmp/yiming/PDNE_all/PDNE_ISD_PROMPT_FINETUNE/experiments/231106_020909_model-25-s/model_00024.pt

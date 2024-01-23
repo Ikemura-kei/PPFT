@@ -1,7 +1,26 @@
-
 conda create -n ppft python=3.8
 conda activate ppft
-pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113
-pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113
-
+conda install pytorch==1.10.0 torchvision==0.11.0 torchaudio==0.10.0 cudatoolkit=11.3 -c pytorch -c conda-forge
 pip install mmcv-full==1.4.4 mmsegmentation==0.22.1  
+pip install timm tqdm thop tensorboard tensorboardX opencv-python ipdb h5py ipython Pillow==9.5.0 gdown
+
+cd SELECTED_APEX_INSTALLATION_PATH
+git clone https://github.com/NVIDIA/apex
+cd apex
+git reset --hard 4ef930c1c884fdca5f472ab2ce7cb9b505d26c1a
+pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+cd PROJ_ROOT/model/completionformer/deformconv/
+
+if reports 
+  ImportError: cannot import name 'container_abcs' from 'torch._six'
+in the script where problem occurred (i.e. _amp_state.py most likely), change 
+  from torch._six import container_abcs
+to
+  import collections.abc as container_abcs
+as mentioned in this issue: https://github.com/NVIDIA/apex/issues/1048
+
+if
+  AttributeError: module 'distutils' has no attribute 'version'
+then
+  pip install setuptools==59.5.0
+according to this issue https://github.com/pytorch/pytorch/issues/69894

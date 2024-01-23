@@ -1,9 +1,0 @@
-12 - /root/autodl-tmp/yiming/PDNE_all/PDNE_ISD_PROMPT_FINETUNE/experiments/231102_053254_model-25-r/model_00012.pt
-14 - /root/autodl-tmp/yiming/PDNE_all/PDNE_ISD_PROMPT_FINETUNE/experiments/231102_053254_model-25-r/model_00014.pt
-16 - /root/autodl-tmp/yiming/PDNE_all/PDNE_ISD_PROMPT_FINETUNE/experiments/231102_053254_model-25-r/model_00016.pt
-18 - /root/autodl-tmp/yiming/PDNE_all/PDNE_ISD_PROMPT_FINETUNE/experiments/231102_053254_model-25-r/model_00018.pt
-20 - /root/autodl-tmp/yiming/PDNE_all/PDNE_ISD_PROMPT_FINETUNE/experiments/231102_053254_model-25-r/model_00020.pt
-22 - /root/autodl-tmp/yiming/PDNE_all/PDNE_ISD_PROMPT_FINETUNE/experiments/231102_053254_model-25-r/model_00022.pt
-24 - /root/autodl-tmp/yiming/PDNE_all/PDNE_ISD_PROMPT_FINETUNE/experiments/231102_053254_model-25-r/model_00024.pt
-26 - /root/autodl-tmp/yiming/PDNE_all/PDNE_ISD_PROMPT_FINETUNE/experiments/231102_053254_model-25-r/model_00026.pt
-28 - /root/autodl-tmp/yiming/PDNE_all/PDNE_ISD_PROMPT_FINETUNE/experiments/231102_053254_model-25-r/model_00028.pt
