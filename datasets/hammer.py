@@ -64,7 +64,7 @@ class HammerDataset(BaseDataset):
             elif self.args.pol_rep == 'leichenyang-7':
                 # pass
                 pol_folder = 'pol_processed'
-                self.vd = np.load('/root/autodl-tmp/yiming/datasets/polar_hammer/vd.npy')
+                self.vd = np.load('./utils/vd.npy')
             self.pol_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", pol_folder) for s in files_names] # note that the polarizatins are stored as npy files
         if self.args.use_norm:
             self.norm_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "norm") for s in files_names] # note that the normals are stored as npy files

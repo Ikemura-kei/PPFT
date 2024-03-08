@@ -14,8 +14,8 @@ from mmseg.utils import get_root_logger
 from mmcv.runner import load_checkpoint
 
 model_path = {
-    'resnet18': 'model/completionformer_original/pretrained/resnet18.pth',
-    'resnet34': 'model/completionformer_original/pretrained/resnet34.pth'
+    'resnet18': 'ckpts/resnet18.pth',
+    'resnet34': 'ckpts/resnet34.pth'
 }
 
 

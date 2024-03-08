@@ -11,7 +11,7 @@ fi
 
 TIME=$(date +"%Y-%m-%d-%T")
 
-python main.py --dir_data ./data/hammer \
+python main.py --dir_data ./data/hammer_polar \
                 --data_name HAMMER \
                 --data_txt ./data_paths/hammer_MODE.txt \
                 --gpus 0 \
@@ -30,4 +30,5 @@ python main.py --dir_data ./data/hammer \
                 --lr 0.00105 \
                 --pretrained_completionformer ./ckpts/NYUv2.pt \
                 --use_pol \
-                --pol_rep leichenyang-7
+                --pol_rep leichenyang-7 \
+                --data_percentage 1 \

@@ -500,7 +500,9 @@ def test(args):
             save_samples = np.random.randint(0, len(loader_test), num_samples_to_save)
         
         line_idx = 0
+        is_old=False
         for line in pretrain_list:
+            print("==> Test target: {}".format(line))
             epoch_idx = line.split(" - ")[0]
             ckpt = line.split(" - ")[1]
             net = load_pretrain(args, net, ckpt)

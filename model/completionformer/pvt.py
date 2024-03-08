@@ -11,8 +11,8 @@ from .resnet_cbam import BasicBlock
 
 
 model_path = {
-    'resnet18': 'model/completionformer_original/pretrained/resnet18.pth',
-    'resnet34': 'model/completionformer_original/pretrained/resnet34.pth'
+    'resnet18': 'ckpts/resnet18.pth',
+    'resnet34': 'ckpts/resnet34.pth'
 }
 
 

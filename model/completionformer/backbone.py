@@ -65,7 +65,7 @@ class Backbone(nn.Module):
         else:
             raise TypeError(mode)
 
-        self.former = PVT(in_chans=64, patch_size=2, pretrained='./model/completionformer_original/pretrained/pvt.pth',)
+        self.former = PVT(in_chans=64, patch_size=2, pretrained='ckpts/pvt.pth',)
 
         channels = [64, 128, 64, 128, 320, 512]
         # Shared Decoder

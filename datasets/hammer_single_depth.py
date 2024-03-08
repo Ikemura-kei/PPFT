@@ -62,10 +62,12 @@ class HammerSingleDepthDataset(BaseDataset):
             elif self.args.pol_rep == 'rgb-12':
                 pass
             elif self.args.pol_rep == 'leichenyang-7':
-                pass
+                # pass
+                pol_folder = 'pol_processed'
+                self.vd = np.load('./utils/vd.npy')
             self.pol_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", pol_folder) for s in files_names] # note that the polarizatins are stored as npy files
         if self.args.use_norm:
-            self.norm_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "norm").replace(".png", ".npy") for s in files_names] # note that the normals are stored as npy files
+            self.norm_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "norm") for s in files_names] # note that the normals are stored as npy files
 
         if args.use_single:
             self.depth_type = args.depth_type
@@ -127,7 +129,7 @@ class HammerSingleDepthDataset(BaseDataset):
 
         # -- prepare normals --
         if self.args.use_norm:
-            norm = np.load(self.norm_files[idx]) # (H, W, 3)
+            norm = ((cv2.cvtColor(cv2.imread(self.norm_files[idx]), cv2.COLOR_BGR2RGB)/255*2)-1).astype(np.float32) # (H, W, 3)
             norm = norm[::4,::4,...]
             norm = np2tensor(norm) # (3, H, W)
 
@@ -149,7 +151,17 @@ class HammerSingleDepthDataset(BaseDataset):
             elif self.args.pol_rep == 'rgb-12':
                 pass
             elif self.args.pol_rep == 'leichenyang-7':
-                pass
+                pol = np.load(self.pol_files[idx].replace('.png', '.npy'))
+                pol = pol[::4,::4,...]
+                vd = self.vd[::4, ::4, ...]
+                iun = pol[..., 0:1]
+                rho = pol[..., 1:2]
+                phi = pol[..., 2:3]
+                phi_encode = np.concatenate([np.cos(2 * phi), np.sin(2 * phi)], axis=2)
+                pol = np.concatenate([iun, rho, phi_encode, vd], axis=2)
+                pol = np2tensor(pol) # (7, H, W)
+            elif self.args.pol_rep == 'rgb':
+                pol = rgb
     
         # -- apply data augmentation --
         rgb = rgb / 255.0

@@ -101,7 +101,7 @@ class PPFTFreezeBackbone(nn.Module):
             raise TypeError(mode)
         
         # self.former = foundation.former
-        self.former = PPFTFreezePVT(in_chans=64, patch_size=2, pretrained='./model/completionformer_original/pretrained/pvt.pth', foundation=foundation.former)
+        self.former = PPFTFreezePVT(in_chans=64, patch_size=2, pretrained='ckpts/pvt.pth', foundation=foundation.former)
 
         # Shared Decoder
         # 1/16
