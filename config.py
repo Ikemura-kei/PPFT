@@ -370,6 +370,5 @@ parser.add_argument('--depth_type',
 args = parser.parse_args()
 args.num_gpus = len(args.gpus.split(','))
 
-current_time = time.strftime('%y%m%d_%H%M%S_')
-save_dir = args.log_dir + current_time + args.save
+save_dir = args.log_dir + args.save
 args.save_dir = save_dir

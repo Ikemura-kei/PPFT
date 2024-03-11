@@ -89,6 +89,9 @@ If one wishes to do testings, please download the checkpoints of the selected mo
 All checkpoints will be downloaded under `./ckpts`, the checkpoint file names are self-explanatory.   
 
 ## 4. Training
+
+Experiment artifacts will be stored under `./experiments/<MODEL_NAME>_<YYYY-MM-DD-hh:mm:ss>`. For example, `./experiments/PPFT_2024-03-11-17:00:59`.
+
 ## 5. Inference & Evaluation
 ## 6. Acknowledgement
 ## 7. Cite
