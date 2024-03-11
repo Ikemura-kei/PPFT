@@ -1,0 +1,111 @@
+***************************************************
+You have loaded an anaconda module
+***************************************************
+
+JUST LOADING THIS MODULE DOES *NOT* CHANGE THE PYTHON VERSION, NOR ENABLES ANY
+EXTRA PYTHON MODULES.
+
+This module makes available the 'conda' command, with which users can create
+named anaconda environments and then activate them.
+
+To create and use a customized environment use 'conda create ...' and
+then 'conda activate ...' (see example below).
+
+---------------------------------------------------------------------------------------------------
+NOTE: NSC strongly advices against placing 'conda activate' (with or without
+arguments)
+      in your shell initialization files, (e.g. '.bashrc' or '.bash_profile')
+since this
+      severly alters the environment for running software in ways that cause
+unpredictable
+      issues that can be difficult to diagnose.
+---------------------------------------------------------------------------------------------------
+
+Example usage:
+
+  * Setting up a customized Anaconda environment and run a Python program in
+it:
+
+    conda create -n myenv python=3.8 scipy=1.5.2
+    conda activate myenv
+    python my_scipy_python_program.py
+
+  * To run the python program in the same environment when logging in the next
+time:
+
+    conda activate myenv
+    python my_scipy_python_program.py
+
+More details on Anaconda environment management here:
+
+
+https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html
+
+
+
+/home/x_keiik/.bashrc: line 23: load_conda: command not found
+/home/x_keiik/.bashrc: line 25: load_cuda: command not found
+[0;32mModel name unspecified, by default will be training PPFT. Other choices are PPFTShallow, PPFTScratch, and PPFTFreeze.[0m
+
+
+=== Arguments ===
+address : localhost  |  affinity : TGASS  |  affinity_gamma : 0.5  |  align : False  |  
+augment : True  |  batch_size : 14  |  betas : (0.9, 0.999)  |  completionformer_mode : rgbd  |  conf_prop : True  |  
+data_name : HAMMER  |  data_percentage : 1.0  |  data_txt : ./data_paths/hammer_MODE.txt  |  depth_type : 0  |  dir_data : ./data/hammer_polar  |  
+direct_align : False  |  direct_cat : False  |  dropout : 0.0  |  epochs : 250  |  epsilon : 1e-08  |  
+from_scratch : False  |  gamma : 0.5  |  gpus : 0  |  l1_weight : 1.0  |  l2_weight : 1.0  |  
+layer0 : False  |  legacy : False  |  lidar_lines : 64  |  log_dir : ./experiments/  |  loss : 1.0*L1+1.0*L2  |  
+lr : 0.00105  |  max_depth : 10.0  |  milestones : [36, 48, 56, 64]  |  model : PPFT  |  momentum : 0.9  |  
+no_multiprocessing : False  |  norm : bn  |  num_gpus : 1  |  num_sample : 500  |  num_summary : 4  |  
+num_threads : 4  |  opt_level : O0  |  optimizer : ADAMW  |  patch_height : 228  |  patch_width : 304  |  
+pol_rep : leichenyang-7  |  port : 29503  |  pre_pvt : True  |  pre_res : True  |  preserve_input : False  |  
+pretrain : None  |  pretrain_list_file : None  |  pretrain_path_comp : bn  |  pretrained_completionformer : ./ckpts/NYUv2.pt  |  print_freq : 1  |  
+prior : False  |  prop_kernel : 3  |  prop_time : 6  |  residual_num : 8  |  resume : False  |  
+save : PPFT_2024-03-08-15:39:34  |  save_dir : ./experiments/240308_153945_PPFT_2024-03-08-15:39:34  |  save_freq : 2  |  save_full : True  |  save_image : False  |  
+save_result_only : False  |  scheduler : cos  |  seed : 43  |  skip_res : False  |  split_json : ../data_json/nyu.json  |  
+step_size : 40  |  test_crop : False  |  test_only : False  |  top_crop : 0  |  trans_bilinear : False  |  
+trans_dim : 64  |  trans_n_channels : 15  |  trans_n_classes : 3  |  use_norm : False  |  use_pol : True  |  
+use_single : False  |  use_val_set : False  |  warm_up : True  |  weight_decay : 0.01  |  
+
+2024-03-08 15:39:56,576 - mmseg - INFO - load checkpoint from local path: ckpts/pvt.pth
+2024-03-08 15:39:56,814 - mmseg - WARNING - The model and loaded state dict do not match exactly
+
+size mismatch for pos_embed1: copying a param with shape torch.Size([1, 3136, 64]) from checkpoint, the shape in current model is torch.Size([1, 12544, 64]).
+size mismatch for patch_embed1.proj.weight: copying a param with shape torch.Size([64, 3, 4, 4]) from checkpoint, the shape in current model is torch.Size([64, 128, 2, 2]).
+unexpected key in source state_dict: cls_token, norm.weight, norm.bias, head.weight, head.bias
+
+missing keys in source state_dict: embed_layer1.0.conv1.weight, embed_layer1.0.bn1.weight, embed_layer1.0.bn1.bias, embed_layer1.0.bn1.running_mean, embed_layer1.0.bn1.running_var, embed_layer1.0.conv2.weight, embed_layer1.0.bn2.weight, embed_layer1.0.bn2.bias, embed_layer1.0.bn2.running_mean, embed_layer1.0.bn2.running_var, embed_layer1.1.conv1.weight, embed_layer1.1.bn1.weight, embed_layer1.1.bn1.bias, embed_layer1.1.bn1.running_mean, embed_layer1.1.bn1.running_var, embed_layer1.1.conv2.weight, embed_layer1.1.bn2.weight, embed_layer1.1.bn2.bias, embed_layer1.1.bn2.running_mean, embed_layer1.1.bn2.running_var, embed_layer1.2.conv1.weight, embed_layer1.2.bn1.weight, embed_layer1.2.bn1.bias, embed_layer1.2.bn1.running_mean, embed_layer1.2.bn1.running_var, embed_layer1.2.conv2.weight, embed_layer1.2.bn2.weight, embed_layer1.2.bn2.bias, embed_layer1.2.bn2.running_mean, embed_layer1.2.bn2.running_var, embed_layer2.0.conv1.weight, embed_layer2.0.bn1.weight, embed_layer2.0.bn1.bias, embed_layer2.0.bn1.running_mean, embed_layer2.0.bn1.running_var, embed_layer2.0.conv2.weight, embed_layer2.0.bn2.weight, embed_layer2.0.bn2.bias, embed_layer2.0.bn2.running_mean, embed_layer2.0.bn2.running_var, embed_layer2.0.downsample.0.weight, embed_layer2.0.downsample.1.weight, embed_layer2.0.downsample.1.bias, embed_layer2.0.downsample.1.running_mean, embed_layer2.0.downsample.1.running_var, embed_layer2.1.conv1.weight, embed_layer2.1.bn1.weight, embed_layer2.1.bn1.bias, embed_layer2.1.bn1.running_mean, embed_layer2.1.bn1.running_var, embed_layer2.1.conv2.weight, embed_layer2.1.bn2.weight, embed_layer2.1.bn2.bias, embed_layer2.1.bn2.running_mean, embed_layer2.1.bn2.running_var, embed_layer2.2.conv1.weight, embed_layer2.2.bn1.weight, embed_layer2.2.bn1.bias, embed_layer2.2.bn1.running_mean, embed_layer2.2.bn1.running_var, embed_layer2.2.conv2.weight, embed_layer2.2.bn2.weight, embed_layer2.2.bn2.bias, embed_layer2.2.bn2.running_mean, embed_layer2.2.bn2.running_var, embed_layer2.3.conv1.weight, embed_layer2.3.bn1.weight, embed_layer2.3.bn1.bias, embed_layer2.3.bn1.running_mean, embed_layer2.3.bn1.running_var, embed_layer2.3.conv2.weight, embed_layer2.3.bn2.weight, embed_layer2.3.bn2.bias, embed_layer2.3.bn2.running_mean, embed_layer2.3.bn2.running_var, block1.0.resblock.conv1.weight, block1.0.resblock.bn1.weight, block1.0.resblock.bn1.bias, block1.0.resblock.bn1.running_mean, block1.0.resblock.bn1.running_var, block1.0.resblock.conv2.weight, block1.0.resblock.bn2.weight, block1.0.resblock.bn2.bias, block1.0.resblock.bn2.running_mean, block1.0.resblock.bn2.running_var, block1.0.resblock.ca.fc.0.weight, block1.0.resblock.ca.fc.2.weight, block1.0.resblock.sa.conv1.weight, block1.0.concat_conv.weight, block1.1.resblock.conv1.weight, block1.1.resblock.bn1.weight, block1.1.resblock.bn1.bias, block1.1.resblock.bn1.running_mean, block1.1.resblock.bn1.running_var, block1.1.resblock.conv2.weight, block1.1.resblock.bn2.weight, block1.1.resblock.bn2.bias, block1.1.resblock.bn2.running_mean, block1.1.resblock.bn2.running_var, block1.1.resblock.ca.fc.0.weight, block1.1.resblock.ca.fc.2.weight, block1.1.resblock.sa.conv1.weight, block1.1.concat_conv.weight, block1.2.resblock.conv1.weight, block1.2.resblock.bn1.weight, block1.2.resblock.bn1.bias, block1.2.resblock.bn1.running_mean, block1.2.resblock.bn1.running_var, block1.2.resblock.conv2.weight, block1.2.resblock.bn2.weight, block1.2.resblock.bn2.bias, block1.2.resblock.bn2.running_mean, block1.2.resblock.bn2.running_var, block1.2.resblock.ca.fc.0.weight, block1.2.resblock.ca.fc.2.weight, block1.2.resblock.sa.conv1.weight, block1.2.concat_conv.weight, block2.0.resblock.conv1.weight, block2.0.resblock.bn1.weight, block2.0.resblock.bn1.bias, block2.0.resblock.bn1.running_mean, block2.0.resblock.bn1.running_var, block2.0.resblock.conv2.weight, block2.0.resblock.bn2.weight, block2.0.resblock.bn2.bias, block2.0.resblock.bn2.running_mean, block2.0.resblock.bn2.running_var, block2.0.resblock.ca.fc.0.weight, block2.0.resblock.ca.fc.2.weight, block2.0.resblock.sa.conv1.weight, block2.0.concat_conv.weight, block2.1.resblock.conv1.weight, block2.1.resblock.bn1.weight, block2.1.resblock.bn1.bias, block2.1.resblock.bn1.running_mean, block2.1.resblock.bn1.running_var, block2.1.resblock.conv2.weight, block2.1.resblock.bn2.weight, block2.1.resblock.bn2.bias, block2.1.resblock.bn2.running_mean, block2.1.resblock.bn2.running_var, block2.1.resblock.ca.fc.0.weight, block2.1.resblock.ca.fc.2.weight, block2.1.resblock.sa.conv1.weight, block2.1.concat_conv.weight, block2.2.resblock.conv1.weight, block2.2.resblock.bn1.weight, block2.2.resblock.bn1.bias, block2.2.resblock.bn1.running_mean, block2.2.resblock.bn1.running_var, block2.2.resblock.conv2.weight, block2.2.resblock.bn2.weight, block2.2.resblock.bn2.bias, block2.2.resblock.bn2.running_mean, block2.2.resblock.bn2.running_var, block2.2.resblock.ca.fc.0.weight, block2.2.resblock.ca.fc.2.weight, block2.2.resblock.sa.conv1.weight, block2.2.concat_conv.weight, block2.3.resblock.conv1.weight, block2.3.resblock.bn1.weight, block2.3.resblock.bn1.bias, block2.3.resblock.bn1.running_mean, block2.3.resblock.bn1.running_var, block2.3.resblock.conv2.weight, block2.3.resblock.bn2.weight, block2.3.resblock.bn2.bias, block2.3.resblock.bn2.running_mean, block2.3.resblock.bn2.running_var, block2.3.resblock.ca.fc.0.weight, block2.3.resblock.ca.fc.2.weight, block2.3.resblock.sa.conv1.weight, block2.3.concat_conv.weight, block3.0.resblock.conv1.weight, block3.0.resblock.bn1.weight, block3.0.resblock.bn1.bias, block3.0.resblock.bn1.running_mean, block3.0.resblock.bn1.running_var, block3.0.resblock.conv2.weight, block3.0.resblock.bn2.weight, block3.0.resblock.bn2.bias, block3.0.resblock.bn2.running_mean, block3.0.resblock.bn2.running_var, block3.0.resblock.ca.fc.0.weight, block3.0.resblock.ca.fc.2.weight, block3.0.resblock.sa.conv1.weight, block3.0.concat_conv.weight, block3.1.resblock.conv1.weight, block3.1.resblock.bn1.weight, block3.1.resblock.bn1.bias, block3.1.resblock.bn1.running_mean, block3.1.resblock.bn1.running_var, block3.1.resblock.conv2.weight, block3.1.resblock.bn2.weight, block3.1.resblock.bn2.bias, block3.1.resblock.bn2.running_mean, block3.1.resblock.bn2.running_var, block3.1.resblock.ca.fc.0.weight, block3.1.resblock.ca.fc.2.weight, block3.1.resblock.sa.conv1.weight, block3.1.concat_conv.weight, block3.2.resblock.conv1.weight, block3.2.resblock.bn1.weight, block3.2.resblock.bn1.bias, block3.2.resblock.bn1.running_mean, block3.2.resblock.bn1.running_var, block3.2.resblock.conv2.weight, block3.2.resblock.bn2.weight, block3.2.resblock.bn2.bias, block3.2.resblock.bn2.running_mean, block3.2.resblock.bn2.running_var, block3.2.resblock.ca.fc.0.weight, block3.2.resblock.ca.fc.2.weight, block3.2.resblock.sa.conv1.weight, block3.2.concat_conv.weight, block3.3.resblock.conv1.weight, block3.3.resblock.bn1.weight, block3.3.resblock.bn1.bias, block3.3.resblock.bn1.running_mean, block3.3.resblock.bn1.running_var, block3.3.resblock.conv2.weight, block3.3.resblock.bn2.weight, block3.3.resblock.bn2.bias, block3.3.resblock.bn2.running_mean, block3.3.resblock.bn2.running_var, block3.3.resblock.ca.fc.0.weight, block3.3.resblock.ca.fc.2.weight, block3.3.resblock.sa.conv1.weight, block3.3.concat_conv.weight, block3.4.resblock.conv1.weight, block3.4.resblock.bn1.weight, block3.4.resblock.bn1.bias, block3.4.resblock.bn1.running_mean, block3.4.resblock.bn1.running_var, block3.4.resblock.conv2.weight, block3.4.resblock.bn2.weight, block3.4.resblock.bn2.bias, block3.4.resblock.bn2.running_mean, block3.4.resblock.bn2.running_var, block3.4.resblock.ca.fc.0.weight, block3.4.resblock.ca.fc.2.weight, block3.4.resblock.sa.conv1.weight, block3.4.concat_conv.weight, block3.5.resblock.conv1.weight, block3.5.resblock.bn1.weight, block3.5.resblock.bn1.bias, block3.5.resblock.bn1.running_mean, block3.5.resblock.bn1.running_var, block3.5.resblock.conv2.weight, block3.5.resblock.bn2.weight, block3.5.resblock.bn2.bias, block3.5.resblock.bn2.running_mean, block3.5.resblock.bn2.running_var, block3.5.resblock.ca.fc.0.weight, block3.5.resblock.ca.fc.2.weight, block3.5.resblock.sa.conv1.weight, block3.5.concat_conv.weight, block4.0.resblock.conv1.weight, block4.0.resblock.bn1.weight, block4.0.resblock.bn1.bias, block4.0.resblock.bn1.running_mean, block4.0.resblock.bn1.running_var, block4.0.resblock.conv2.weight, block4.0.resblock.bn2.weight, block4.0.resblock.bn2.bias, block4.0.resblock.bn2.running_mean, block4.0.resblock.bn2.running_var, block4.0.resblock.ca.fc.0.weight, block4.0.resblock.ca.fc.2.weight, block4.0.resblock.sa.conv1.weight, block4.0.concat_conv.weight, block4.1.resblock.conv1.weight, block4.1.resblock.bn1.weight, block4.1.resblock.bn1.bias, block4.1.resblock.bn1.running_mean, block4.1.resblock.bn1.running_var, block4.1.resblock.conv2.weight, block4.1.resblock.bn2.weight, block4.1.resblock.bn2.bias, block4.1.resblock.bn2.running_mean, block4.1.resblock.bn2.running_var, block4.1.resblock.ca.fc.0.weight, block4.1.resblock.ca.fc.2.weight, block4.1.resblock.sa.conv1.weight, block4.1.concat_conv.weight, block4.2.resblock.conv1.weight, block4.2.resblock.bn1.weight, block4.2.resblock.bn1.bias, block4.2.resblock.bn1.running_mean, block4.2.resblock.bn1.running_var, block4.2.resblock.conv2.weight, block4.2.resblock.bn2.weight, block4.2.resblock.bn2.bias, block4.2.resblock.bn2.running_mean, block4.2.resblock.bn2.running_var, block4.2.resblock.ca.fc.0.weight, block4.2.resblock.ca.fc.2.weight, block4.2.resblock.sa.conv1.weight, block4.2.concat_conv.weight
+
+===pretrained weight loaded===
+conv1 parameter:  0.0031M
+qkv parameter:  0.0983M
+spa_conv parameter:  0.0330M
+spa_proj parameter:  0.0328M
+chan_fc parameter:  0.0328M
+spa_proj parameter:  0.0164M
+P0 parameter:  0.2688M
+qkv parameter:  0.0246M
+spa_conv parameter:  0.0083M
+spa_proj parameter:  0.0082M
+chan_fc parameter:  0.0082M
+spa_proj parameter:  0.0041M
+P parameter:  0.1273M
+qkv parameter:  0.0983M
+spa_conv parameter:  0.0330M
+spa_proj parameter:  0.0328M
+chan_fc parameter:  0.0328M
+spa_proj parameter:  0.0164M
+P parameter:  0.2874M
+qkv parameter:  0.6144M
+spa_conv parameter:  0.2054M
+spa_proj parameter:  0.2048M
+chan_fc parameter:  0.2048M
+spa_proj parameter:  0.1024M
+P parameter:  1.7014M
+qkv parameter:  1.5729M
+spa_conv parameter:  0.5253M
+spa_proj parameter:  0.5243M
+chan_fc parameter:  0.5243M
+spa_proj parameter:  0.2621M
+P parameter:  4.8850M
+  0%|          | 0/15750 [00:00<?, ?it/s]slurmstepd: error: *** JOB 10622457 ON node084 CANCELLED AT 2024-03-08T15:40:08 ***

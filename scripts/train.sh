@@ -14,7 +14,7 @@ TIME=$(date +"%Y-%m-%d-%T")
 python main.py --dir_data ./data/hammer_polar \
                 --data_name HAMMER \
                 --data_txt ./data_paths/hammer_MODE.txt \
-                --gpus 0 \
+                --gpus 0,1 \
                 --loss 1.0*L1+1.0*L2 \
                 --batch_size 14 \
                 --epochs 250 \

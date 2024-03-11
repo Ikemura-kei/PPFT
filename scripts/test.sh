@@ -6,7 +6,7 @@ python main.py --dir_data ./data/hammer_polar \
                 --gpus 0 \
                 --loss 1.0*L1+1.0*L2 \
                 --log_dir ./experiments/ \
-                --save ppft_final \
+                --save debug2 \
                 --model PPFT \
                 --completionformer_mode rgbd \
                 --pre_pvt \
@@ -16,4 +16,4 @@ python main.py --dir_data ./data/hammer_polar \
                 --pol_rep leichenyang-7 \
                 --test_only \
                 --data_percentage 1 \
-                --pretrain_list_file ./ckpts/ppft_final.txt \
+                --pretrain_list_file ./ckpts/debug.txt \
