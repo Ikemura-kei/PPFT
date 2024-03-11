@@ -2,7 +2,7 @@
 
 # ===============================================================================
 # this script downloads the CompletionFormer foundation model checkpoint, trained 
-# on NYUDepth-V2 dataset, provided by the original authors, Yun et al.
+# on NYUDepth-V2 dataset, provided by the original authors, Zhang et al.
 # ===============================================================================
 
 mkdir -p ckpts

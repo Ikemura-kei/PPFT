@@ -41,13 +41,13 @@ By running the command, a dataset folder with path `<LOCATION_OF_CHOICE>/hammer`
 #### 2.2 Processing HAMMER
 We will add entries to the dataset to fascilitate more efficient training and testing. Specifically, we will process the polarization data to generate new data such as AoLP, DoLP, and etc., since reading raw data and computing them in each data loading occasion is extremely inefficient.   
 
-Considering it is a good idea to keep the original dataset as it is in the storage device, we will create a new folder to store everything we need to add (plus subset of original data we also need). Thus, we will NOT be using the originally downloaded dataset, but to create a new one named `<LOCATION_OF_CHOICE>/hammer_polar`.  
+Considering it is a good idea to keep the original dataset as it is in the storage device, __we will create a new folder to store everything we need to add (plus subset of original data we also need)__. Thus, we will NOT be using the originally downloaded dataset, but to create a new one named `<LOCATION_OF_CHOICE>/hammer_polar`.  
 
 ###### Step 1: Copy stuff
 Please run the following command first, to copy data in the original dataset we need into the new data space:   
 
 ```bash
-./script/copy_hammer.sh <LOCATION_OF_CHOICE>/hammer
+./script/data_processing/copy_hammer.sh <LOCATION_OF_CHOICE>/hammer
 ```
 
 A new dataset at path `<LOCATION_OF_CHOICE>/hammer_polar` will be created after successful command execution.
@@ -58,13 +58,14 @@ A new dataset at path `<LOCATION_OF_CHOICE>/hammer_polar` will be created after 
 After copying necessary data from the original dataset to the new data space, please run the following to generate new samples we need:  
 
 ```bash
+python ./scripts/data_processing/process_hammer.py
 ```
 
 #### 2.3 \[Optional\] Creating symbolic link to dataset
 It is usually a good practice to store datasets (which are large in general) to a shared location, and create symbolic links to individual project workspaces. In case you agree and wish to do this, please run the following command to create a symbolic link of the dataset in this project space quickly. Of course you can also type the command for creating symbolic links manually, just make sure later you edit the training and testing scripts to pass a correct, alternative data root path.
 
 ```bash
-./scripts/symbolic_link_data.sh <LOCATION_OF_CHOICE>/hammer_polar
+./scripts/data_processing/symbolic_link_data.sh <LOCATION_OF_CHOICE>/hammer_polar
 ```
 ## 3. Model Checkpoints
 
@@ -84,6 +85,8 @@ If one wishes to do testings, please download the checkpoints of the selected mo
 ./script/downloads/model_ckpt_ppft_scratch.sh # for PPFTScratch
 ./script/downloads/model_ckpt_ppft_freeze.sh # for PPFTFreeze
 ```
+
+All checkpoints will be downloaded under `./ckpts`, the checkpoint file names are self-explanatory.   
 
 ## 4. Training
 ## 5. Inference & Evaluation
