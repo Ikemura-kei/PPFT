@@ -84,7 +84,7 @@ class PPFTBackbone(nn.Module):
                 # self.conv1_pol_for_dep = conv_bn_relu(7, 16, kernel=3, stride=1, padding=1,
                 #                           bn=False)
                 total = sum([param.nelement() for param in self.conv1_pol_for_rgb.parameters()])
-                print('conv1 parameter: % .4fM' % (total / 1e6))
+                # print('conv1 parameter: % .4fM' % (total / 1e6))
 
             elif self.args.pol_rep == 'rgb':
                 self.conv1_pol_for_rgb = conv_bn_relu(3, 48, kernel=3, stride=1, padding=1,

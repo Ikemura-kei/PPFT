@@ -54,28 +54,28 @@ class ModalityPromper(nn.Module):
         super(ModalityPromper, self).__init__()
         self.qkv = nn.Linear(in_dim*2, in_dim*3, bias=False)
         qkv_total = sum([param.nelement() for param in self.qkv.parameters()])
-        print('qkv parameter: % .4fM' % (qkv_total / 1e6))
+        # print('qkv parameter: % .4fM' % (qkv_total / 1e6))
         self.relu = nn.ReLU(inplace=True)
         self.spa_conv = conv_bn_relu(in_dim*2, in_dim, kernel=1, stride=1)
         spa_conv_total = sum([param.nelement() for param in self.spa_conv.parameters()])
-        print('spa_conv parameter: % .4fM' % (spa_conv_total / 1e6))
+        # print('spa_conv parameter: % .4fM' % (spa_conv_total / 1e6))
         self.spa_softmax = nn.Softmax(dim=-1)
         self.smooth = nn.Parameter(torch.zeros(1) + 10.0)
         self.spa_out_drop = nn.Dropout(0.15, inplace=True)
         self.spa_proj = nn.Linear(in_dim, in_dim*2, bias=False)
         
         spa_proj_total = sum([param.nelement() for param in self.spa_proj.parameters()])
-        print('spa_proj parameter: % .4fM' % (spa_proj_total / 1e6))
+        # print('spa_proj parameter: % .4fM' % (spa_proj_total / 1e6))
         self.global_pool=nn.AdaptiveAvgPool2d(1)
         self.chan_softmax = nn.Softmax(dim=-1)
         self.chan_fc=nn.Conv2d(in_dim,in_dim*2,1, bias=False)
         
         chan_fc_total = sum([param.nelement() for param in self.chan_fc.parameters()])
-        print('chan_fc parameter: % .4fM' % (chan_fc_total / 1e6))
+        # print('chan_fc parameter: % .4fM' % (chan_fc_total / 1e6))
         self.chan_proj = nn.Linear(in_dim, in_dim, bias=False)
         
         chan_proj_total = sum([param.nelement() for param in self.chan_proj.parameters()])
-        print('spa_proj parameter: % .4fM' % (chan_proj_total / 1e6))
+        # print('spa_proj parameter: % .4fM' % (chan_proj_total / 1e6))
 
 
     def forward(self, x, prompt):

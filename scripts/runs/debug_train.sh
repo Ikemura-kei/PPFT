@@ -14,12 +14,12 @@ TIME=$(date +"%Y-%m-%d-%T")
 python main_refactored.py --dir_data ./data/hammer_polar \
                 --data_name HAMMER \
                 --data_txt ./data_paths/hammer_MODE.txt \
-                --gpus 0,1 \
+                --gpus 0 \
                 --loss 1.0*L1+1.0*L2 \
                 --batch_size 14 \
                 --epochs 250 \
                 --log_dir ./experiments/ \
-                --save ${MODEL_NAME}_${TIME} \
+                --save ${MODEL_NAME}_train_${TIME} \
                 --model ${MODEL_NAME} \
                 --completionformer_mode rgbd \
                 --pre_pvt \
@@ -31,4 +31,4 @@ python main_refactored.py --dir_data ./data/hammer_polar \
                 --pretrained_completionformer ./ckpts/NYUv2.pt \
                 --use_pol \
                 --pol_rep leichenyang-7 \
-                --data_percentage 1 \
+                --data_percentage 0.01 \

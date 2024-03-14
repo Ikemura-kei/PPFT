@@ -242,6 +242,7 @@ parser.add_argument('--save_freq',
                     default=2,
                     # default=3,
                     help='the number of epochs for one model saving')
+parser.add_argument('--save_objective', type=str, default='MAE', choices=['MAE', 'RMSE', 'REL'])
 
 # Summary
 parser.add_argument('--num_summary',

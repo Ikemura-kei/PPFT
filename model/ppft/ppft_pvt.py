@@ -204,7 +204,7 @@ class PyramidVisionTransformer(nn.Module):
 
             self.mp0 = ModalityPromper(chs[0])
             total = sum([param.nelement() for param in self.mp0.parameters()]) + sum([param.nelement() for param in self.prompt_modifier0.parameters()])
-            print('P0 parameter: % .4fM' % (total / 1e6))
+            # print('P0 parameter: % .4fM' % (total / 1e6))
 
         for i in range(num_stages):
             if use_prompt:
@@ -213,7 +213,7 @@ class PyramidVisionTransformer(nn.Module):
                 mp = ModalityPromper(chs[i+1])
                 
                 total = sum([param.nelement() for param in mp.parameters()]) + sum([param.nelement() for param in prompt_modifier.parameters()])
-                print('P parameter: % .4fM' % (total / 1e6))
+                # print('P parameter: % .4fM' % (total / 1e6))
 
                 setattr(self, f"prompt_modifier{i + 1}", prompt_modifier)
                 setattr(self, f"mp{i + 1}", mp)
