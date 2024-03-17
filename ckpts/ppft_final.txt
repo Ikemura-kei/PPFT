@@ -1,1 +1,0 @@
-24 - ./ckpts/model_00024.pt

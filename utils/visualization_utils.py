@@ -22,11 +22,23 @@ def norm_to_colormap(norm):
     vis = cv2.cvtColor(vis, cv2.COLOR_RGB2BGR)
     return vis
 
-def save_visualization(pred, gt, dep, folder):
+def save_visualization(pred, gt, dep, folder, with_error_map=False):
     out = depth_to_colormap(pred, 2.6)
-    gt = depth_to_colormap(gt, 2.6)
+    gt_ = depth_to_colormap(gt, 2.6)
     sparse = depth_to_colormap(dep, 2.6)
 
     cv2.imwrite(os.path.join(folder, "out.png"), out)
     cv2.imwrite(os.path.join(folder, "sparse.png"), sparse)
-    cv2.imwrite(os.path.join(folder, "gt.png"), gt)
+    cv2.imwrite(os.path.join(folder, "gt.png"), gt_)
+    
+    if with_error_map:
+        gt_mask = gt.detach().cpu().numpy()[0].transpose(1,2,0)
+        gt_mask[gt_mask <= 0.001] = 0
+        err = torch.abs(pred-gt)
+
+        error_map_vis = depth_to_colormap(err, 0.55)
+        error_map_vis[np.tile(gt_mask, (1,1,3))==0] = 0
+        
+        cv2.imwrite(os.path.join(folder, 'err.png'), error_map_vis)
+        # -- we implicitly assume when error map is specified, we also wish to store the raw prediction for later analysis --
+        cv2.imwrite(os.path.join(folder, 'out_raw.png'), (pred.detach().cpu().numpy()[0]*1000).astype(np.uint16)) # in mm

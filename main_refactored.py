@@ -424,7 +424,7 @@ def test_one_model(args, net, loader_test, save_samples, epoch_idx=0, summary_wr
 
     metric = CompletionFormerMetric(args)
 
-    vis_dir = os.path.join(args.save_dir, "{}".format('all' if (not args.use_single) else ['stereo', 'd-tof', 'i-tof'][args.depth_type]), 'visualization')
+    vis_dir = os.path.join(args.save_dir, "{}".format('all' if (not args.use_single) else ['stereo', 'd-tof', 'i-tof'][args.depth_type]), "epoch-{}".format(str(epoch_idx)), 'visualization')
     try:
         os.makedirs(vis_dir, exist_ok=True)
     except OSError:
@@ -479,29 +479,11 @@ def test_one_model(args, net, loader_test, save_samples, epoch_idx=0, summary_wr
             gt = sample['gt'] # in m
             pred = output['pred'] # in m
 
-            def depth2vis(depth, MAX_DEPTH=2.15):
-                depth = depth.detach().cpu().numpy()[0].transpose(1,2,0)
-                vis = ((depth / MAX_DEPTH) * 255).astype(np.uint8)
-                vis = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
-                return vis
+            pred = pred * sample['net_mask']
 
-            gt_vis = depth2vis(gt, 2.15)
-            dep_vis = depth2vis(dep, 2.15)
-            pred_vis = depth2vis(pred, 2.15)
-            # -- error map --
-            gt_mask = gt.detach().cpu().numpy()[0].transpose(1,2,0)
-            gt_mask[gt_mask <= 0.001] = 0
-            err = torch.abs(pred-gt)
-
-            error_map_vis = depth2vis(err, 0.55)
-            error_map_vis[np.tile(gt_mask, (1,1,3))==0] = 0
-
-            os.makedirs(os.path.join(vis_dir, 'e{}'.format(epoch_idx)), exist_ok=True)
-            cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_gt.png'.format(batch)), gt_vis)
-            cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_err.png'.format(batch)), error_map_vis)
-            cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_pred.png'.format(batch)), pred_vis)
-            cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_pred_raw.png'.format(batch)), (pred.detach().cpu().numpy()[0][0]*1000).astype(np.uint16))
-            cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_dep.png'.format(batch)), dep_vis)
+            this_vis_dir = os.path.join(vis_dir, 'sample-{}'.format(batch))
+            os.makedirs(this_vis_dir, exist_ok=True)
+            save_visualization(pred[0], gt[0], dep[0], this_vis_dir)
     
     pbar.close()
 
@@ -539,7 +521,7 @@ def test(args):
 
     # -- test model(s), depending on if one or multiple checkpoints are provided --
     if args.pretrain is not None:
-        summary_writer = SummaryWriter(log_dir=os.path.join(args.save_dir, 'test', 'logs'))
+        summary_writer = SummaryWriter(log_dir=os.path.join(args.save_dir, 'logs'))
 
         net = load_pretrain(args, net, args.pretrain)
         save_samples = np.arange(len(loader_test))
@@ -547,15 +529,11 @@ def test(args):
         test_one_model(args, net, loader_test, save_samples, result_dict=result_dict, summary_writer=summary_writer)
         summary_writer.close()
     elif args.pretrain_list_file is not None:
-        summary_writer = SummaryWriter(log_dir=os.path.join(args.save_dir, 'test', 'logs'))
+        summary_writer = SummaryWriter(log_dir=os.path.join(args.save_dir, 'logs'))
 
         pretrain_list = open(args.pretrain_list_file, 'r').read().split("\n")
-        num_samples_to_save = 3 if len(pretrain_list) >= 5 else len(pretrain_list)
-        if len(pretrain_list) == 1:
-            save_samples = np.arange(len(loader_test))
-        else:
-            num_samples_to_save = int(len(loader_test) / 40.0)
-            save_samples = np.random.randint(0, len(loader_test), num_samples_to_save)
+
+        save_samples = np.arange(len(loader_test))
         
         line_idx = 0
 

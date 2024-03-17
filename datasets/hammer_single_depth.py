@@ -44,13 +44,13 @@ class HammerSingleDepthDataset(BaseDataset):
             files_names = file.read().split("\n")[:-1]
         # files_names = files_names[:10]
 
-        self.rgb_files = [s.replace("DATA_ROOT", args.dir_data) for s in files_names] # note that the original paths in the path list is pointing to the rgb images
         
         PERCENTAGE = args.data_percentage
         if PERCENTAGE < (1-1e-6):
-            random.shuffle(self.rgb_files)
-            self.rgb_files = self.rgb_files[:int(len(self.rgb_files) * PERCENTAGE)]
+            random.shuffle(files_names)
+            files_names = files_names[:int(len(files_names) * PERCENTAGE)]
 
+        self.rgb_files = [s.replace("DATA_ROOT", args.dir_data) for s in files_names] # note that the original paths in the path list is pointing to the rgb images
         self.sparse_depth_d435_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "depth_d435") for s in files_names]
         self.sparse_depth_l515_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "depth_l515") for s in files_names]
         self.sparse_depth_itof_files = [s.replace("DATA_ROOT", args.dir_data).replace("rgb", "depth_tof") for s in files_names]
