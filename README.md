@@ -90,8 +90,52 @@ All checkpoints will be downloaded under `./ckpts`, the checkpoint file names ar
 
 ## 4. Training
 
+Run the following to start the training process:
+
+```bash
+./scripts/runs/train.sh <MODEL>
+```
+
+Where `<MODEL>` refers to the type of model to train, can be one of `PPFT`, `PPFTFreeze`, `PPFTScratch`, and `PPFTShallow`. Of course, it is welcomed to add your own models as extensions.
+
+For example, to reproduce our final model, run:
+
+```bash
+./scripts/runs/train.sh PPFT
+```
+
+> Note that you can tune the training parameters inside the training script if you wish to do so.
+
 Experiment artifacts will be stored under `./experiments/<MODEL_NAME>_<YYYY-MM-DD-hh:mm:ss>`. For example, `./experiments/PPFT_2024-03-11-17:00:59`.
 
 ## 5. Inference & Evaluation
+
+If reproducing our testing result is the only concern, please run:
+
+```bash
+./scripts/runs/test.sh
+```
+
+Give that the content of `test.sh` is untouched.    
+
+To evaluate your own training outcomes, we support inference using multiple checkpoints as a convinient and flexible utility. Of course one-checkpoint inference is also available by design. 
+
+The first step is to create a `model.txt` file that specifies your checkpoint information. Refer to `./ckpts/ppft_final/model.txt` as an example. The format of each line should be `<EPOCH> - <PATH TO CKPT>`.  
+
+
+Once you have `model.txt` that is the list of checkpoints to be tested, put the path to your `model.txt` to the `CKPT_FILE` argument in `./scripts/runs/test.sh` and specify the model type in `MODEL_NAME`.
+
+Once having done the above two steps, simply run:
+
+```bash
+./scripts/runs/test.sh
+```
+
+The experiment outcomes will be stored in `./experiments/<MODEL_NAME>_test_<YYYY-MM-DD-hh:mm:ss>`.
+
 ## 6. Acknowledgement
+This work was supported by the InnoHK program.   
+
+In addition, we thank Zhang _et al._ who kindly open-sourced their code-base to the CompletionFormer model, which has been the foundation of our research as well as the code.
+
 ## 7. Cite

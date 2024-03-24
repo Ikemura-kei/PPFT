@@ -1,0 +1,4 @@
+24 - ./experiments/PPFTFreeze_2024-03-17-14:25:24/model_00024.pt
+44 - ./experiments/PPFTFreeze_2024-03-17-14:25:24/model_00044.pt
+60 - ./experiments/PPFTFreeze_2024-03-17-14:25:24/model_00060.pt
+66 - ./experiments/PPFTFreeze_2024-03-17-14:25:24/model_00066.pt

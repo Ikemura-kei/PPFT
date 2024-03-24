@@ -1,8 +1,8 @@
 #! /bin/bash
 TIME=$(date +"%Y-%m-%d-%T")
 
-MODEL_NAME="PPFT"
-CKPT_FILE="./ckpts/ppft_final/model.txt"
+MODEL_NAME="PPFTFreeze" # PPFT, PPFTFreeze
+CKPT_FILE="./ckpts/ppft_freeze/model.txt"
 
 python main_refactored.py --dir_data ./data/hammer_polar \
                 --data_name HAMMER \
