@@ -8,4 +8,4 @@ conda activate ppft
 
 PROJ_DIR=/home/x_keiik/154_ws/PDNE
 
-cd ${PROJ_DIR} && bash ./scripts/runs/train.sh PPFTFreeze
+cd ${PROJ_DIR} && bash ./scripts/runs/train.sh SimMat

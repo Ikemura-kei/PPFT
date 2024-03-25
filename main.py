@@ -20,10 +20,12 @@ import time
 import random
 import os
 import cv2
+import copy
 from tqdm import tqdm
 from utils.mics import save_output
 from utils.metrics import PDNEMetric
 from utils.depth2normal import depth2norm
+from utils.visualization_utils import *
 # -- model imports --
 import model
 # -- training utilities --
@@ -43,13 +45,10 @@ from apex.parallel import DistributedDataParallel as DDP
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-best_rmse = 100
-best_mae = 100
-
 # ---------------
 # -- constants --
 # ---------------
-MODEL_CHOICES = ['PPFT', 'PPFTShallow', 'PPFTScratch', 'PPFTFreeze']
+MODEL_CHOICES = ['PPFT', 'PPFTShallow', 'PPFTScratch', 'PPFTFreeze', 'CompletionFormer', 'SimMat']
 
 # ------------------------------
 # -- user provided parameters --
@@ -114,16 +113,13 @@ def load_pretrain(args, net, ckpt):
 
 # -- the training function --
 def train(gpu, args):
-    global best_rmse
-    global best_mae
-
     # -- initialize distributed training, rank=0 is used for logging --
     dist.init_process_group(backend='nccl', init_method=f'tcp://localhost:{args.port}',
                             world_size=args.num_gpus, rank=gpu)
     torch.cuda.set_device(gpu)
 
-
     # -- instantiate the dataloaders --
+    print("==> Creating dataset...")
     dataset = HammerDataset(args, "train")
 
     sampler_train = DistributedSampler(
@@ -135,14 +131,20 @@ def train(gpu, args):
         dataset=dataset, batch_size=batch_size, shuffle=False,
         num_workers=args.num_threads, pin_memory=True, sampler=sampler_train,
         drop_last=True)
+    
+    loader_val = DataLoader(
+        dataset=HammerDataset(args, "val"), batch_size=1, shuffle=False,
+        num_workers=args.num_threads, pin_memory=True)
+    print("==> Dataset created.")
 
     # -- instantiate the model --
-    # TODO: Make this smarter
+    print("==> Initializing model...")
     if args.model not in MODEL_CHOICES:
         raise TypeError(args.model, MODEL_CHOICES)
     
     net = getattr(model, args.model)(args)
     net.cuda(gpu)
+    print("==> Model initialized.")
     
     # -- load pretrained weights in case of fine-tuning an existing PPFT, e.g. resuming --
     if gpu == 0:
@@ -194,19 +196,26 @@ def train(gpu, args):
         os.makedirs(args.save_dir, exist_ok=True)
         os.makedirs(args.save_dir + '/train', exist_ok=True)
         writer_train = SummaryWriter(log_dir=args.save_dir + '/' + 'train')
-        writer_val = SummaryWriter(log_dir=args.save_dir + '/' + 'val')
         total_losses = np.zeros(np.array(loss.loss_name).shape)
         total_metrics = np.zeros(np.array(metric.metric_name).shape)
 
         with open(args.save_dir + '/args.json', 'w') as args_json:
             json.dump(args.__dict__, args_json, indent=4)
-
+    
     # -- check for training warm-ups --
     if args.warm_up:
         warm_up_cnt = 0.0
         warm_up_max_cnt = len(loader_train)+1.0
 
+    # -- decide the training sample index to track for sanity check --
+    rand_idx = np.random.randint(0, args.batch_size)
+    tracked_sample = None
+    
     # -- training loop starts here --
+    print("==> Training begins.")
+    best_save_objective_value = 1e10 # we assume save objective is always lower the better (e.g. MAE, RMSE, etc.)
+    best_save_objective_epoch = 1
+    
     for epoch in range(init_epoch, args.epochs+1):
         net.train()
 
@@ -235,6 +244,8 @@ def train(gpu, args):
                     if (val is not None) and key != 'base_name'}
 
             sample["input"] = sample["rgb"]
+            if tracked_sample is None:
+                tracked_sample = copy.deepcopy(sample)
 
             # -- update learning rates according to the warm-up scheme --
             if epoch == 1 and args.warm_up:
@@ -254,8 +265,6 @@ def train(gpu, args):
             sample['gt'] = sample['gt'] 
 
             loss_sum, loss_val = loss(sample, output)
-                
-            # Divide by batch size
             loss_sum = loss_sum / loader_train.batch_size
             loss_val = loss_val / loader_train.batch_size
 
@@ -281,48 +290,53 @@ def train(gpu, args):
         if gpu == 0:
             pbar.close()
 
-            # TODO: Make this cleaner by moving the visualization utilities to other scripts
-            if epoch % 2 == 0:
-                # -- save visualization --
-                folder_name = os.path.join(args.save_dir, "epoch-{}".format(str(epoch)))
-                os.makedirs(folder_name, exist_ok=True)
-                rand_idx = np.random.randint(0, args.batch_size)
+            # -- save visualization of the tracked training sample (so that you can check training process qualitatively) --
+            output = net(tracked_sample)
+            output['pred'] = output['pred'] * tracked_sample['net_mask']
 
-                def depth_to_colormap(depth, max_depth):
-                    npy_depth = depth.detach().cpu().numpy()[0]
-                    vis = ((npy_depth / max_depth) * 255).astype(np.uint8)
-                    vis = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
-                    return vis
+            folder_name = os.path.join(args.save_dir, "train", "epoch-{}".format(str(epoch))) # saved under "./experiments/<experiment_dir>/epoch-<epoch>"
+            os.makedirs(folder_name, exist_ok=True)
+            
+            save_visualization(output["pred"][rand_idx], tracked_sample["gt"][rand_idx], tracked_sample["dep"][rand_idx], folder_name)
+            
+            # -- save normal map too in case we are interested in --
+            if args.use_norm:
+                gt_norm_vis = norm_to_colormap(tracked_sample['norm'][rand_idx])
+                cv2.imwrite(os.path.join(folder_name, "gt_norm.png"), gt_norm_vis)
+                
+                pred_norm_vis = norm_to_colormap(normal_from_dep[rand_idx])
+                cv2.imwrite(os.path.join(folder_name, "pred_norm.png"), pred_norm_vis)
 
-                def norm_to_colormap(norm):
-                    norm = norm[0].permute(1,2,0).detach().cpu().numpy()
-                    vis = ((norm+1) * 255/2).astype(np.uint8)
-                    vis = cv2.cvtColor(vis, cv2.COLOR_RGB2BGR)
-                    return vis
-
-                out = depth_to_colormap(output["pred"][rand_idx], 2.6)
-                gt = depth_to_colormap(sample["gt"][rand_idx], 2.6)
-                sparse = depth_to_colormap(sample["dep"][rand_idx], 2.6)
-
-                cv2.imwrite(os.path.join(folder_name, "out.png"), out)
-                cv2.imwrite(os.path.join(folder_name, "sparse.png"), sparse)
-                cv2.imwrite(os.path.join(folder_name, "gt.png"), gt)
-
-                if args.use_norm:
-                    gt_norm_vis = norm_to_colormap(sample['norm'])
-                    cv2.imwrite(os.path.join(folder_name, "gt_norm.png"), gt_norm_vis)
-                    
-                    pred_norm_vis = norm_to_colormap(normal_from_dep)
-                    cv2.imwrite(os.path.join(folder_name, "pred_norm.png"), pred_norm_vis)
-
+            # -- log training losses --
             for i in range(len(loss.loss_name)):
                 writer_train.add_scalar(
                     loss.loss_name[i], total_losses[i] / len(loader_train), epoch)
 
+            # -- log learning rate --
             writer_train.add_scalar('lr', scheduler.get_last_lr()[0], epoch)
 
             # -- save the model checkpoint at the right timing --
-            if ((epoch) % args.save_freq == 0) or epoch==5 or epoch==args.epochs:
+            if ((epoch) % args.save_freq == 0) or epoch == args.epochs:
+                vis_folder = os.path.join(args.save_dir, "val", "epoch-{}".format(str(epoch)))
+                os.makedirs(vis_folder, exist_ok=True)
+                print("==> Start validation of epoch {}...".format(epoch))
+                metric_res = validation(args, net, loader_val, vis_folder, epoch, writer_train)
+                print("==> Finished validation of epoch {}.".format(epoch))
+                
+                is_best = False
+                for i, met_name in enumerate(metric.metric_name):
+                    if met_name != args.save_objective:
+                        continue
+                    
+                    print("==> Validation result on the save objective {} is {:.5f}".format(args.save_objective, metric_res[i]))
+                    if best_save_objective_value > metric_res[i]:
+                        best_save_objective_value = metric_res[i]
+                        best_save_objective_epoch = epoch
+                        is_best = True
+                        
+                    print('==> Current best model is at epoch-{} with metric value {}: {:.5f}'.format(best_save_objective_epoch, args.save_objective, best_save_objective_value))
+                    break
+                
                 if args.save_full or epoch == args.epochs:
                     state = {
                         'net': net.module.state_dict(),
@@ -342,6 +356,10 @@ def train(gpu, args):
                 torch.save(
                     state, '{}/model_{:05d}.pt'.format(args.save_dir, epoch))
                 
+                if is_best:
+                    torch.save(
+                    state, '{}/model_best.pt'.format(args.save_dir))
+                
         # -- update learning rate --
         scheduler.step()
 
@@ -351,21 +369,67 @@ def train(gpu, args):
 
     if gpu == 0:
         writer_train.close()
-        writer_val.close()
+
+def validation(args, net, loader_val, vis_folder, epoch_idx, summary_writer=None):
+    net = nn.DataParallel(net)
+    net.eval()
+    
+    metric = CompletionFormerMetric(args)
+    total_metrics = None
+    num_sample = len(loader_val)*loader_val.batch_size
+
+    pbar = tqdm(total=num_sample)
+    init_seed()
+
+    for batch, sample in enumerate(loader_val):
+        sample = {key: val.cuda() for key, val in sample.items()
+                  if (val is not None) and key != 'basename'}
+        
+        with torch.no_grad():
+            output = net(sample)
+
+        metric_val = metric.evaluate(sample, output, 'test')
+
+        if total_metrics is None:
+            total_metrics = metric_val[0]
+        else:
+            total_metrics += metric_val[0]
+
+        current_time = time.strftime('%y%m%d@%H:%M:%S')
+        error_str = '{} | Test'.format(current_time)
+        if batch % args.print_freq == 0:
+            pbar.set_description(error_str)
+            pbar.update(loader_val.batch_size)
+        
+        metric_dict = {}
+        count = 0
+        for m in metric.metric_name:
+            metric_dict[m] = metric_val[0][count].detach().cpu().numpy().astype(float).tolist()
+            count += 1
+
+    pbar.close()
+
+    metric_avg = total_metrics / num_sample
+    if summary_writer is not None:
+        for i, metric_name in enumerate(metric.metric_name):
+            summary_writer.add_scalar('val/{}'.format(metric_name), metric_avg[i], epoch_idx)
+    
+    save_visualization(output["pred"][0], sample["gt"][0], sample["dep"][0], vis_folder)
+    
+    return metric_avg
 
 # -- the tssting functions --
-def test_one_model(args, net, loader_test, save_samples, epoch_idx=0, summary_writer=None, is_old=False, result_dict=None, idx=0):
+def test_one_model(args, net, loader_test, save_samples, epoch_idx=0, summary_writer=None, result_dict=None, idx=0):
     net = nn.DataParallel(net)
 
     metric = CompletionFormerMetric(args)
 
-    vis_dir = os.path.join(args.save_dir, 'test', 'visualization')
+    vis_dir = os.path.join(args.save_dir, "{}".format('all' if (not args.use_single) else ['stereo', 'd-tof', 'i-tof'][args.depth_type]), "epoch-{}".format(str(epoch_idx)), 'visualization')
     try:
         os.makedirs(vis_dir, exist_ok=True)
-        result_file = open(os.path.join(args.save_dir, 'test', 'results.txt'), 'w')
     except OSError:
         pass
-
+    
     net.eval()
 
     num_sample = len(loader_test)*loader_test.batch_size
@@ -380,9 +444,7 @@ def test_one_model(args, net, loader_test, save_samples, epoch_idx=0, summary_wr
     for batch, sample in enumerate(loader_test):
         sample = {key: val.cuda() for key, val in sample.items()
                   if (val is not None) and key != 'basename'}
-
-
-
+        
         t0 = time.time()
         with torch.no_grad():
             output = net(sample)
@@ -406,12 +468,10 @@ def test_one_model(args, net, loader_test, save_samples, epoch_idx=0, summary_wr
         metric_dict = {}
         count = 0
         for m in metric.metric_name:
-            # print(metric_val[0])
             metric_dict[m] = metric_val[0][count].detach().cpu().numpy().astype(float).tolist()
-            # print(m, metric_dict[m])
             count += 1
+            
         if result_dict is not None:
-            # print(f's{idx+batch}.png')
             result_dict[f's{idx+batch}.png'] = metric_dict
 
         if batch in save_samples:
@@ -419,29 +479,11 @@ def test_one_model(args, net, loader_test, save_samples, epoch_idx=0, summary_wr
             gt = sample['gt'] # in m
             pred = output['pred'] # in m
 
-            def depth2vis(depth, MAX_DEPTH=2.15):
-                depth = depth.detach().cpu().numpy()[0].transpose(1,2,0)
-                vis = ((depth / MAX_DEPTH) * 255).astype(np.uint8)
-                vis = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
-                return vis
+            pred = pred * sample['net_mask']
 
-            gt_vis = depth2vis(gt, 2.15)
-            dep_vis = depth2vis(dep, 2.15)
-            pred_vis = depth2vis(pred, 2.15)
-            # -- error map --
-            gt_mask = gt.detach().cpu().numpy()[0].transpose(1,2,0)
-            gt_mask[gt_mask <= 0.001] = 0
-            err = torch.abs(pred-gt)
-
-            error_map_vis = depth2vis(err, 0.55)
-            error_map_vis[np.tile(gt_mask, (1,1,3))==0] = 0
-
-            os.makedirs(os.path.join(vis_dir, 'e{}'.format(epoch_idx)), exist_ok=True)
-            cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_gt.png'.format(batch)), gt_vis)
-            cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_err.png'.format(batch)), error_map_vis)
-            cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_pred.png'.format(batch)), pred_vis)
-            cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_pred_raw.png'.format(batch)), (pred.detach().cpu().numpy()[0][0]*1000).astype(np.uint16))
-            cv2.imwrite(os.path.join(vis_dir, 'e{}'.format(epoch_idx), 's{}_dep.png'.format(batch)), dep_vis)
+            this_vis_dir = os.path.join(vis_dir, 'sample-{}'.format(batch))
+            os.makedirs(this_vis_dir, exist_ok=True)
+            save_visualization(pred[0], gt[0], dep[0], this_vis_dir)
     
     pbar.close()
 
@@ -477,45 +519,47 @@ def test(args):
     loader_test = DataLoader(dataset=data_test, batch_size=1,
                              shuffle=False, num_workers=args.num_threads)
 
-    # -- load checkpoint(s) --
+    # -- test model(s), depending on if one or multiple checkpoints are provided --
     if args.pretrain is not None:
-        summary_writer = SummaryWriter(log_dir=os.path.join(args.save_dir, 'test', 'logs'))
+        summary_writer = SummaryWriter(log_dir=os.path.join(args.save_dir, 'logs'))
 
-        
         net = load_pretrain(args, net, args.pretrain)
-        # save_samples = np.random.randint(0, len(loader_test), 10)
         save_samples = np.arange(len(loader_test))
 
-        test_one_model(args, net, loader_test, save_samples, is_old=is_old, result_dict=result_dict, summary_writer=summary_writer)
+        test_one_model(args, net, loader_test, save_samples, result_dict=result_dict, summary_writer=summary_writer)
         summary_writer.close()
     elif args.pretrain_list_file is not None:
-        summary_writer = SummaryWriter(log_dir=os.path.join(args.save_dir, 'test', 'logs'))
+        summary_writer = SummaryWriter(log_dir=os.path.join(args.save_dir, 'logs'))
 
         pretrain_list = open(args.pretrain_list_file, 'r').read().split("\n")
-        num_samples_to_save = 3 if len(pretrain_list) >= 5 else len(pretrain_list)
-        if len(pretrain_list) == 1:
-            save_samples = np.arange(len(loader_test))
-        else:
-            num_samples_to_save = int(len(loader_test) / 40.0)
-            save_samples = np.random.randint(0, len(loader_test), num_samples_to_save)
+
+        save_samples = np.arange(len(loader_test))
         
         line_idx = 0
-        is_old=False
+
+        metric = CompletionFormerMetric(args)
         for line in pretrain_list:
-            print("==> Test target: {}".format(line))
+            print("==> Testing checkpoint: {}".format(line))
+            
             epoch_idx = line.split(" - ")[0]
             ckpt = line.split(" - ")[1]
             net = load_pretrain(args, net, ckpt)
-            test_one_model(args, net, loader_test, save_samples, epoch_idx, summary_writer, is_old=is_old, result_dict=result_dict, idx=line_idx)
+            metric_avg = test_one_model(args, net, loader_test, save_samples, epoch_idx, summary_writer, result_dict=result_dict, idx=line_idx)
             line_idx += 1
+            
+            result_file_path = os.path.join(args.save_dir, "{}".format('all' if (not args.use_single) else ['stereo', 'd-tof', 'i-tof'][args.depth_type]), 'results.txt')
+            result_file = open(result_file_path, 'a')
+            
+            result_file.write("=============================\nCheckpoint: {} @ Epoch-{}\n".format(ckpt, epoch_idx))
+            for i, met_name in enumerate(metric.metric_name):
+                result_file.write("{}: {:.6f}\n".format(met_name, metric_avg[i]))
+            result_file.write("=============================\n\n")
+            print("==> Results written to {}".format(result_file_path))
+        
         summary_writer.close()
     else:
         raise Exception("No checkpoint or checkpoint list provided, please provide one for testing")
-
-    # -- log results --
-    with open(args.save_dir + '/result.json', 'w') as args_json:
-        json.dump(result_dict, args_json, indent=4)
-
+    
 # -- main --
 def main(args):
     init_seed()

@@ -106,7 +106,7 @@ For example, to reproduce our final model, run:
 
 > Note that you can tune the training parameters inside the training script if you wish to do so.
 
-Experiment artifacts will be stored under `./experiments/<MODEL_NAME>_<YYYY-MM-DD-hh:mm:ss>`. For example, `./experiments/PPFT_2024-03-11-17:00:59`.
+Experiment artifacts will be stored under `./experiments/<MODEL_NAME>_train_<YYYY-MM-DD-hh:mm:ss>`. For example, `./experiments/PPFT_train_2024-03-11-17:00:59`.
 
 ## 5. Inference & Evaluation
 

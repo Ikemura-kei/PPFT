@@ -5,13 +5,13 @@ NC='\033[0m'
 MODEL_NAME=${1}
 
 if [ -z "$MODEL_NAME" ]; then
-    echo -e ${GREEN}Model name unspecified, by default will be training "PPFT". Other choices are "PPFTShallow", "PPFTScratch", and "PPFTFreeze".${NC}
+    echo -e ${GREEN}Model name unspecified, by default will be training "PPFT". Other choices are "CompletionFormer", "SimMat", "PPFTShallow", "PPFTScratch", and "PPFTFreeze".${NC}
     MODEL_NAME=PPFT
 fi
 
 TIME=$(date +"%Y-%m-%d-%T")
 
-python main_refactored.py --dir_data ./data/hammer_polar \
+python main.py --dir_data ./data/hammer_polar \
                 --data_name HAMMER \
                 --data_txt ./data_paths/hammer_MODE.txt \
                 --gpus 0 \
@@ -31,4 +31,4 @@ python main_refactored.py --dir_data ./data/hammer_polar \
                 --pretrained_completionformer ./ckpts/NYUv2.pt \
                 --use_pol \
                 --pol_rep leichenyang-7 \
-                --data_percentage 0.01 \
+                --data_percentage 0.05 \

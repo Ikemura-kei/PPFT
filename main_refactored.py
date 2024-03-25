@@ -48,7 +48,7 @@ torch.backends.cudnn.benchmark = False
 # ---------------
 # -- constants --
 # ---------------
-MODEL_CHOICES = ['PPFT', 'PPFTShallow', 'PPFTScratch', 'PPFTFreeze']
+MODEL_CHOICES = ['PPFT', 'PPFTShallow', 'PPFTScratch', 'PPFTFreeze', 'CompletionFormer']
 
 # ------------------------------
 # -- user provided parameters --
